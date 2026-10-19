@@ -1,5 +1,5 @@
 -- ============================================
--- OLLIE ADMIN  •  v33 (The Ultimate Fix)
+-- OLLIE ADMIN  •  v34 (Aimbot & Team Fix)
 -- ============================================
 
 local Players           = game:GetService("Players")
@@ -18,7 +18,7 @@ local camera = workspace.CurrentCamera
 -- CONFIG STATE
 -- ============================================
 local CFG = {
-    teamCheck = "Enemies", -- "Enemies", "Same Team", "All"
+    teamCheck = true, -- Simple boolean now
     aimbot = false, aimPart = "Head", aimFov = 150, aimSmooth = 0.2,
     silentAim = false, triggerbot = false, triggerDelay = 0.1, triggerRange = 200,
     rapidFire = false, rapidFireRate = 0.04, hitboxExpand = false, hitboxSize = 5,
@@ -45,13 +45,8 @@ local flags = {
 -- ============================================
 -- HELPERS
 -- ============================================
-local function isTeam(plr)
-    if CFG.teamCheck == "All" then return false end
-    if CFG.teamCheck == "Same Team" then
-        if not lp.Team or not plr.Team then return false end
-        return plr.Team == lp.Team
-    end
-    -- Default: "Enemies"
+local function isTeammate(plr)
+    if not CFG.teamCheck then return false end
     if not lp.Team or not plr.Team then return false end
     return plr.Team == lp.Team
 end
@@ -122,7 +117,7 @@ if getrawmetatable and hookmetamethod then
             local ray = args[1]
             local closest, dist = nil, 200
             for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= lp and not isTeam(p) and p.Character then
+                if p ~= lp and not isTeammate(p) and p.Character then
                     local part = getAimPart(p)
                     local hum = p.Character:FindFirstChildOfClass("Humanoid")
                     if part and hum and hum.Health > 0 then
@@ -252,7 +247,7 @@ local function updateESP()
                 if CFG.esp and not flags.espObjects[p] then
                     local hl = Instance.new("Highlight")
                     hl.Adornee = p.Character
-                    hl.FillColor = isTeam(p) and Color3.fromRGB(60, 120, 255) or Color3.fromRGB(255, 60, 60)
+                    hl.FillColor = isTeammate(p) and Color3.fromRGB(60, 120, 255) or Color3.fromRGB(255, 60, 60)
                     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                     hl.Parent = flags.espFolder
                     flags.espObjects[p] = hl
@@ -263,7 +258,7 @@ local function updateESP()
                     if onScreen then
                         if not flags.tracerObjects[p] then
                             local line = Instance.new("Frame")
-                            line.BackgroundColor3 = isTeam(p) and Color3.fromRGB(60, 120, 255) or Color3.fromRGB(255, 60, 60)
+                            line.BackgroundColor3 = isTeammate(p) and Color3.fromRGB(60, 120, 255) or Color3.fromRGB(255, 60, 60)
                             line.BorderSizePixel = 0
                             line.Parent = flags.tracerFolder
                             flags.tracerObjects[p] = line
@@ -425,39 +420,6 @@ local function makeSlider(parent, label, min, max, cfKey, cb)
     end)
     table.insert(flags.uiItems, {type = "slider", key = cfKey, update = updateVisual})
     return holder
-end
-
-local function makeDropdown(parent, label, options, cfKey, cb)
-    local btn = makeButton(parent, "  " .. label .. ": " .. tostring(CFG[cfKey]), UDim2.new(1, 0, 0, 32))
-    btn.TextXAlignment = Enum.TextXAlignment.Left
-    
-    local isOpen = false
-    local list = Instance.new("Frame")
-    list.Size = UDim2.new(1, 0, 0, #options * 26)
-    list.Position = UDim2.new(0, 0, 1, 0)
-    list.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    list.Visible = false
-    list.ZIndex = 10
-    list.Parent = btn
-    local lc = Instance.new("UICorner"); lc.CornerRadius = UDim.new(0, 6); lc.Parent = list
-    
-    btn.MouseButton1Click:Connect(function()
-        isOpen = not isOpen
-        list.Visible = isOpen
-    end)
-    
-    for i, opt in ipairs(options) do
-        local ob = makeButton(list, "  " .. opt, UDim2.new(1, 0, 0, 24), Color3.fromRGB(25, 25, 35))
-        ob.Position = UDim2.new(0, 0, 0, (i-1)*26)
-        ob.MouseButton1Click:Connect(function()
-            CFG[cfKey] = opt
-            btn.Text = "  " .. label .. ": " .. tostring(opt)
-            list.Visible = false
-            isOpen = false
-            saveConfig()
-            if cb then cb(opt) end
-        end)
-    end
 end
 
 -- ============================================
@@ -646,13 +608,12 @@ local function refreshPlayers()
             local row = makeButton(pList, "  " .. p.Name, UDim2.new(1, 0, 0, 28), Color3.fromRGB(20, 20, 30))
             row.TextXAlignment = Enum.TextXAlignment.Left
             
-            -- Team Status Label
             local statusLbl = Instance.new("TextLabel")
             statusLbl.Size = UDim2.new(0, 100, 1, 0)
             statusLbl.Position = UDim2.new(1, -110, 0, 0)
             statusLbl.BackgroundTransparency = 1
-            statusLbl.Text = p.Team and p.Team.Name or "None"
-            statusLbl.TextColor3 = isTeam(p) and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 60, 60)
+            statusLbl.Text = p.Team and p.Team.Name or "No Team"
+            statusLbl.TextColor3 = isTeammate(p) and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 60, 60)
             statusLbl.Font = Enum.Font.Gotham
             statusLbl.TextSize = 11
             statusLbl.TextXAlignment = Enum.TextXAlignment.Right
@@ -799,15 +760,64 @@ end)
 -- TAB: COMBAT
 -- ============================================
 local combatPage = addTab("Combat")
-makeDropdown(combatPage, "Team Check", {"Enemies", "Same Team", "All"}, "teamCheck")
-makeToggle(combatPage, "Aimbot (RMB)", "aimbot")
+makeToggle(combatPage, "Team Check (Skip Teammates)", "teamCheck")
+makeToggle(combatPage, "Aimbot (Hold RMB)", "aimbot")
 makeSlider(combatPage, "Aimbot FOV", 20, 500, "aimFov")
 makeSlider(combatPage, "Aimbot Smoothness", 0.05, 1, "aimSmooth")
 makeToggle(combatPage, "Silent Aim", "silentAim")
 makeToggle(combatPage, "Triggerbot", "triggerbot")
+makeSlider(combatPage, "Trigger Range", 50, 500, "triggerRange")
 makeToggle(combatPage, "Rapid Fire", "rapidFire")
 makeToggle(combatPage, "Hitbox Expander", "hitboxExpand")
 makeSlider(combatPage, "Hitbox Size", 1, 20, "hitboxSize")
+
+UserInputService.InputBegan:Connect(function(input, gpe) if not gpe and input.UserInputType == Enum.UserInputType.MouseButton2 then flags.aiming = true end end)
+UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton2 then flags.aiming = false end end)
+
+RunService.RenderStepped:Connect(function()
+    if CFG.aimbot and flags.aiming then
+        local closest, dist = nil, CFG.aimFov
+        local mouse = UserInputService:GetMouseLocation()
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= lp and not isTeammate(p) and p.Character then
+                local part = getAimPart(p)
+                local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                if part and hum and hum.Health > 0 then
+                    local screen, onScreen = camera:WorldToViewportPoint(part.Position)
+                    if onScreen then
+                        local d = (Vector2.new(screen.X, screen.Y) - mouse).Magnitude
+                        if d < dist then closest, dist = part, d end
+                    end
+                end
+            end
+        end
+        if closest then 
+            camera.CFrame = camera.CFrame:Lerp(CFrame.new(camera.CFrame.Position, closest.Position), CFG.aimSmooth) 
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.05) do
+        if CFG.triggerbot then
+            local mouse = UserInputService:GetMouseLocation()
+            local ray = camera:ViewportPointToRay(mouse.X, mouse.Y)
+            local params = RaycastParams.new(); params.FilterType = Enum.RaycastFilterType.Exclude; params.FilterDescendantsInstances = {lp.Character, workspace:FindFirstChild("AdminESP")}
+            local result = workspace:Raycast(ray.Origin, ray.Direction * CFG.triggerRange, params)
+            if result and result.Instance then
+                local hitModel = result.Instance:FindFirstAncestorOfClass("Model")
+                local hitPlayer = hitModel and Players:GetPlayerFromCharacter(hitModel)
+                if hitPlayer and hitPlayer ~= lp and not isTeammate(hitPlayer) then
+                    local vim = game:GetService("VirtualInputManager")
+                    vim:SendMouseButtonEvent(mouse.X, mouse.Y, 0, true, game, 1)
+                    task.wait(0.02)
+                    vim:SendMouseButtonEvent(mouse.X, mouse.Y, 0, false, game, 1)
+                    task.wait(CFG.triggerDelay)
+                end
+            end
+        end
+    end
+end)
 
 -- ============================================
 -- TAB: MOVEMENT
