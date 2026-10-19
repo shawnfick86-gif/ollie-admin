@@ -1,6 +1,6 @@
 -- ============================================
--- OLLIE ADMIN  •  v29 (Ultimate Premium)
--- Silent Aim  •  Hitbox  •  Auto-Farm  •  Troll
+-- OLLIE ADMIN  •  v30 (The Mega Update)
+-- 30+ Features  •  Full ESP  •  Auto-Lock  •  Troll
 -- ============================================
 
 local Players           = game:GetService("Players")
@@ -10,10 +10,13 @@ local Lighting          = game:GetService("Lighting")
 local HttpService       = game:GetService("HttpService")
 local TweenService      = game:GetService("TweenService")
 local TeleportService   = game:GetService("TeleportService")
+local StarterGui        = game:GetService("StarterGui")
 
 local lp = Players.LocalPlayer
 local pg = lp:WaitForChild("PlayerGui")
 local camera = workspace.CurrentCamera
+
+local isPremium = true
 
 -- ============================================
 -- CONFIG STATE
@@ -23,14 +26,14 @@ local CFG = {
     teamCheck = true, aimbot = false, aimPart = "Head", aimFov = 150, aimSmooth = 0.2,
     silentAim = false, triggerbot = false, triggerDelay = 0.1, triggerRange = 200,
     rapidFire = false, rapidFireRate = 0.04, hitboxExpand = false, hitboxSize = 5,
-    noRecoil = false, noSpread = false, infAmmo = false,
+    noRecoil = false, noSpread = false, infAmmo = false, autoLock = false,
     
     -- Movement
     walkSpeed = 16, jumpPower = 50, fly = false, flySpeed = 50, noclip = false, infJump = false,
-    speedLock = true, autoClicker = false,
+    speedLock = true, autoClicker = false, bunnyhop = false,
     
     -- Visuals
-    esp = false, fullbright = false,
+    esp = false, fullbright = false, tracers = false, fovCircle = false, nameEsp = false,
     
     -- Orbit
     orbitEnabled = false, orbitRadius = 10, orbitSpeed = 3,
@@ -46,7 +49,7 @@ local flags = {
     bindingKey = nil, orbitConn = nil, orbitAngle = 0,
     isMouseDown = false, lastFireTime = 0, musicInstance = nil,
     killOrbitActive = false, originalCFrame = nil, killOrbitConns = {},
-    hitboxConn = nil, autoClickConn = nil, silentAimHook = nil
+    espFolder = nil, tracerFolder = nil, espObjects = {}, tracerObjects = {}
 }
 
 -- ============================================
@@ -164,7 +167,7 @@ local function applyHitbox()
 end
 
 -- ============================================
--- WEAPON MODS (Recoil/Spread/Ammo)
+-- WEAPON MODS
 -- ============================================
 local function applyWeaponMods()
     local char = lp.Character
@@ -181,7 +184,7 @@ local function applyWeaponMods()
 end
 
 -- ============================================
--- DA HOOD SPEED BYPASS
+-- DA HOOD SPEED BYPASS & BUNNYHOP
 -- ============================================
 RunService:BindToRenderStep("OllieSpeedBypass", Enum.RenderPriority.Camera.Value + 2, function()
     if CFG.speedLock then
@@ -192,28 +195,29 @@ RunService:BindToRenderStep("OllieSpeedBypass", Enum.RenderPriority.Camera.Value
             if hum.UseJumpPower and hum.JumpPower ~= CFG.jumpPower then hum.JumpPower = CFG.jumpPower end
         end
     end
+    if CFG.bunnyhop then
+        local char = lp.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum and hum:GetState() == Enum.HumanoidStateType.Landed then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
 end)
 
 -- ============================================
--- AUTO CLICKER & RAPID FIRE
+-- RAPID FIRE & AUTO CLICKER
 -- ============================================
 UserInputService.InputBegan:Connect(function(input, gpe)
-    if not gpe and input.UserInputType == Enum.UserInputType.MouseButton1 then
-        flags.isMouseDown = true
-    end
+    if not gpe and input.UserInputType == Enum.UserInputType.MouseButton1 then flags.isMouseDown = true end
 end)
-
 UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        flags.isMouseDown = false
-    end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then flags.isMouseDown = false end
 end)
 
 RunService.RenderStepped:Connect(function()
     if CFG.rapidFire and flags.isMouseDown then
         local char = lp.Character
-        if not char then return end
-        local tool = char:FindFirstChildOfClass("Tool")
+        local tool = char and char:FindFirstChildOfClass("Tool")
         if tool then
             local now = tick()
             if now - flags.lastFireTime >= CFG.rapidFireRate then
@@ -244,6 +248,69 @@ task.spawn(function()
         applyHitbox()
     end
 end)
+
+-- ============================================
+-- ESP & TRACERS
+-- ============================================
+local function clearESP()
+    if flags.espFolder then flags.espFolder:ClearAllChildren() end
+    if flags.tracerFolder then flags.tracerFolder:ClearAllChildren() end
+    flags.espObjects = {}
+    flags.tracerObjects = {}
+end
+
+local function updateESP()
+    if not CFG.esp and not CFG.tracers and not CFG.nameEsp then clearESP(); return end
+    if not flags.espFolder then flags.espFolder = Instance.new("Folder", workspace); flags.espFolder.Name = "AdminESP" end
+    if not flags.tracerFolder then flags.tracerFolder = Instance.new("Folder", pg); flags.tracerFolder.Name = "AdminTracers" end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = p.Character.HumanoidRootPart
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            
+            if hum and hum.Health > 0 then
+                if CFG.esp then
+                    if not flags.espObjects[p] then
+                        local hl = Instance.new("Highlight")
+                        hl.Adornee = p.Character
+                        hl.FillColor = isTeam(p) and Color3.fromRGB(60, 120, 255) or Color3.fromRGB(255, 60, 60)
+                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        hl.Parent = flags.espFolder
+                        flags.espObjects[p] = hl
+                    end
+                end
+                
+                if CFG.tracers then
+                    local screenPos, onScreen = camera:WorldToViewportPoint(hrp.Position)
+                    if onScreen then
+                        if not flags.tracerObjects[p] then
+                            local line = Instance.new("Frame")
+                            line.BackgroundColor3 = isTeam(p) and Color3.fromRGB(60, 120, 255) or Color3.fromRGB(255, 60, 60)
+                            line.BorderSizePixel = 0
+                            line.Parent = flags.tracerFolder
+                            flags.tracerObjects[p] = line
+                        end
+                        local line = flags.tracerObjects[p]
+                        local startX = camera.ViewportSize.X / 2
+                        local startY = camera.ViewportSize.Y
+                        local endX, endY = screenPos.X, screenPos.Y
+                        local length = math.sqrt((endX - startX)^2 + (endY - startY)^2)
+                        local angle = math.atan2(endY - startY, endX - startX)
+                        line.Size = UDim2.new(0, length, 0, 1)
+                        line.Position = UDim2.new(0, startX, 0, startY)
+                        line.Rotation = math.deg(angle)
+                        line.Visible = true
+                    else
+                        if flags.tracerObjects[p] then flags.tracerObjects[p].Visible = false end
+                    end
+                end
+            end
+        end
+    end
+end
+
+RunService.RenderStepped:Connect(updateESP)
 
 -- ============================================
 -- UI BUILDERS
@@ -579,15 +646,20 @@ local detailsText = makeLabel(detailsPanel, "Select a player...", UDim2.new(1, -
 detailsText.Position = UDim2.new(0, 80, 0, 10); detailsText.TextYAlignment = Enum.TextYAlignment.Top; detailsText.TextSize = 11
 
 local btnContainer = Instance.new("Frame")
-btnContainer.Size = UDim2.new(1, -20, 0, 32); btnContainer.Position = UDim2.new(0, 10, 1, -45)
+btnContainer.Size = UDim2.new(1, -20, 0, 60); btnContainer.Position = UDim2.new(0, 10, 1, -70)
 btnContainer.BackgroundTransparency = 1; btnContainer.Parent = detailsPanel
 local btnLayout = Instance.new("UIListLayout"); btnLayout.FillDirection = Enum.FillDirection.Horizontal; btnLayout.Padding = UDim.new(0, 6); btnLayout.Parent = btnContainer
 
-local teleportBtn = makeButton(btnContainer, "Teleport", UDim2.new(0.2, -5, 1, 0))
-local spectateBtn = makeButton(btnContainer, "Spectate", UDim2.new(0.2, -5, 1, 0))
-local orbitBtn = makeButton(btnContainer, "Orbit", UDim2.new(0.2, -5, 1, 0))
-local killOrbitBtn = makeButton(btnContainer, "Kill Orbit", UDim2.new(0.2, -5, 1, 0), Color3.fromRGB(200, 60, 60))
-local highlightBtn = makeButton(btnContainer, "Highlight", UDim2.new(0.2, -5, 1, 0))
+local teleportBtn = makeButton(btnContainer, "Teleport", UDim2.new(0.2, -5, 0, 26))
+local bringBtn = makeButton(btnContainer, "Bring", UDim2.new(0.2, -5, 0, 26))
+local killBtn = makeButton(btnContainer, "Kill", UDim2.new(0.2, -5, 0, 26))
+local spectateBtn = makeButton(btnContainer, "Spectate", UDim2.new(0.2, -5, 0, 26))
+local orbitBtn = makeButton(btnContainer, "Orbit", UDim2.new(0.2, -5, 0, 26))
+
+local killOrbitBtn = makeButton(btnContainer, "Kill Orbit", UDim2.new(0.4, -5, 0, 26), Color3.fromRGB(200, 60, 60))
+local highlightBtn = makeButton(btnContainer, "Highlight", UDim2.new(0.2, -5, 0, 26))
+local freezeBtn = makeButton(btnContainer, "Freeze", UDim2.new(0.2, -5, 0, 26))
+local copyBtn = makeButton(btnContainer, "Copy ID", UDim2.new(0.2, -5, 0, 26))
 
 local function refreshPlayers()
     for _, c in ipairs(pList:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
@@ -609,4 +681,455 @@ local function refreshPlayers()
     pList.CanvasSize = UDim2.new(0, 0, 0, n * 30)
 end
 
-search
+searchBox:GetPropertyChangedSignal("Text"):Connect(refreshPlayers)
+refreshPlayers()
+Players.PlayerAdded:Connect(function() task.wait(0.5); refreshPlayers() end)
+Players.PlayerRemoving:Connect(function() task.wait(1); refreshPlayers() end)
+
+teleportBtn.MouseButton1Click:Connect(function()
+    if CFG.selectedPlayer and CFG.selectedPlayer.Character and lp.Character then
+        local hrp = CFG.selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then lp.Character.HumanoidRootPart.CFrame = hrp.CFrame * CFrame.new(0, 0, 3) end
+    end
+end)
+
+bringBtn.MouseButton1Click:Connect(function()
+    if CFG.selectedPlayer and CFG.selectedPlayer.Character and lp.Character then
+        local hrp = CFG.selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then hrp.CFrame = lp.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3) end
+    end
+end)
+
+killBtn.MouseButton1Click:Connect(function()
+    if CFG.selectedPlayer and CFG.selectedPlayer.Character then
+        local hum = CFG.selectedPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.Health = 0 end
+    end
+end)
+
+local function stopSpectating()
+    flags.isSpectating = false
+    spectateBtn.Text = "Spectate"
+    spectateBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    local myHum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+    if myHum then camera.CameraSubject = myHum; camera.CameraType = Enum.CameraType.Custom end
+end
+
+spectateBtn.MouseButton1Click:Connect(function()
+    if flags.isSpectating then stopSpectating()
+    elseif CFG.selectedPlayer and CFG.selectedPlayer.Character then
+        local hum = CFG.selectedPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then 
+            flags.isSpectating = true
+            camera.CameraSubject = hum
+            camera.CameraType = Enum.CameraType.Custom
+            spectateBtn.Text = "Stop"
+            spectateBtn.BackgroundColor3 = Color3.fromRGB(100, 40, 40)
+        end
+    end
+end)
+
+local isOrbiting = false
+orbitBtn.MouseButton1Click:Connect(function()
+    if not CFG.selectedPlayer or not CFG.selectedPlayer.Character then return end
+    isOrbiting = not isOrbiting
+    if isOrbiting then
+        orbitBtn.Text = "Orbiting..."; orbitBtn.BackgroundColor3 = Color3.fromRGB(40, 100, 200)
+        flags.orbitAngle = 0
+        flags.orbitConn = RunService.Heartbeat:Connect(function(dt)
+            if not isOrbiting or not CFG.selectedPlayer or not CFG.selectedPlayer.Character then return end
+            local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+            local targetHrp = CFG.selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp and targetHrp then
+                flags.orbitAngle = flags.orbitAngle + (dt * CFG.orbitSpeed)
+                hrp.CFrame = CFrame.new(targetHrp.Position + Vector3.new(math.cos(flags.orbitAngle), 0, math.sin(flags.orbitAngle)) * CFG.orbitRadius, targetHrp.Position)
+            end
+        end)
+    else
+        orbitBtn.Text = "Orbit"; orbitBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+        if flags.orbitConn then flags.orbitConn:Disconnect(); flags.orbitConn = nil end
+    end
+end)
+
+local function stopKillOrbit()
+    if not flags.killOrbitActive then return end
+    flags.killOrbitActive = false
+    for _, c in ipairs(flags.killOrbitConns) do c:Disconnect() end
+    flags.killOrbitConns = {}
+    if flags.originalCFrame and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
+        lp.Character.HumanoidRootPart.CFrame = flags.originalCFrame
+    end
+    killOrbitBtn.Text = "Kill Orbit"
+    killOrbitBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+end
+
+killOrbitBtn.MouseButton1Click:Connect(function()
+    if flags.killOrbitActive then stopKillOrbit(); return end
+    if not CFG.selectedPlayer or not CFG.selectedPlayer.Character then return end
+    local target = CFG.selectedPlayer
+    local myHrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if not myHrp then return end
+    flags.originalCFrame = myHrp.CFrame
+    flags.killOrbitActive = true
+    killOrbitBtn.Text = "Killing..."; killOrbitBtn.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+    local angle = 0
+    table.insert(flags.killOrbitConns, RunService.Heartbeat:Connect(function(dt)
+        if not flags.killOrbitActive then return end
+        local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        local tHrp = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+        if hrp and tHrp then
+            angle = angle + (dt * CFG.orbitSpeed * 2)
+            hrp.CFrame = CFrame.new(tHrp.Position + Vector3.new(math.cos(angle), 2, math.sin(angle)) * CFG.orbitRadius, tHrp.Position)
+        end
+    end))
+    table.insert(flags.killOrbitConns, RunService.RenderStepped:Connect(function()
+        if not flags.killOrbitActive then return end
+        local head = target.Character and target.Character:FindFirstChild("Head")
+        if head then camera.CFrame = CFrame.new(camera.CFrame.Position, head.Position) end
+    end))
+    table.insert(flags.killOrbitConns, RunService.Heartbeat:Connect(function()
+        if not flags.killOrbitActive then return end
+        local tool = lp.Character and lp.Character:FindFirstChildOfClass("Tool")
+        if tool then
+            for _, child in ipairs(tool:GetDescendants()) do
+                if child:IsA("RemoteEvent") and (child.Name:lower():find("fire") or child.Name:lower():find("shoot")) then
+                    pcall(function() child:FireServer() end)
+                    break
+                end
+            end
+        end
+    end))
+    table.insert(flags.killOrbitConns, RunService.Heartbeat:Connect(function()
+        if not flags.killOrbitActive then return end
+        local hum = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
+        if not hum or hum.Health <= 0 then stopKillOrbit() end
+    end))
+end)
+
+highlightBtn.MouseButton1Click:Connect(function()
+    if CFG.selectedPlayer and CFG.selectedPlayer.Character then
+        local hl = Instance.new("Highlight", CFG.selectedPlayer.Character); hl.FillColor = Color3.fromRGB(255, 200, 60); hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; task.wait(2); hl:Destroy()
+    end
+end)
+
+freezeBtn.MouseButton1Click:Connect(function()
+    if CFG.selectedPlayer and CFG.selectedPlayer.Character then
+        local hrp = CFG.selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then hrp.Anchored = not hrp.Anchored end
+    end
+end)
+
+copyBtn.MouseButton1Click:Connect(function()
+    if CFG.selectedPlayer then pcall(function() setclipboard(tostring(CFG.selectedPlayer.UserId)) end) end
+end)
+
+-- ============================================
+-- TAB: COMBAT
+-- ============================================
+local combatPage = addTab("Combat")
+makeToggle(combatPage, "Team Check", "teamCheck")
+makeToggle(combatPage, "Aimbot (RMB)", "aimbot")
+makeSlider(combatPage, "Aimbot FOV", 20, 500, "aimFov")
+makeSlider(combatPage, "Aimbot Smoothness", 0.05, 1, "aimSmooth")
+makeToggle(combatPage, "Silent Aim", "silentAim")
+makeToggle(combatPage, "Triggerbot", "triggerbot")
+makeSlider(combatPage, "Trigger Delay", 0.05, 1, "triggerDelay")
+makeSlider(combatPage, "Trigger Range", 50, 500, "triggerRange")
+makeToggle(combatPage, "Rapid Fire", "rapidFire")
+makeSlider(combatPage, "Rapid Fire Rate", 0.01, 0.2, "rapidFireRate")
+makeToggle(combatPage, "Auto-Lock (Troll)", "autoLock")
+makeToggle(combatPage, "Hitbox Expander", "hitboxExpand")
+makeSlider(combatPage, "Hitbox Size", 1, 20, "hitboxSize")
+makeToggle(combatPage, "No Recoil", "noRecoil")
+makeToggle(combatPage, "No Spread", "noSpread")
+makeToggle(combatPage, "Infinite Ammo", "infAmmo")
+
+UserInputService.InputBegan:Connect(function(input, gpe) if not gpe and input.UserInputType == Enum.UserInputType.MouseButton2 then flags.aiming = true end end)
+UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton2 then flags.aiming = false end end)
+RunService:BindToRenderStep("OllieAim", Enum.RenderPriority.Camera.Value + 1, function()
+    if not CFG.aimbot or not flags.aiming then return end
+    local closest, dist = nil, CFG.aimFov
+    local mouse = UserInputService:GetMouseLocation()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and not isTeam(p) and p.Character then
+            local part = getAimPart(p)
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            if part and hum and hum.Health > 0 then
+                local screen, onScreen = camera:WorldToViewportPoint(part.Position)
+                if onScreen then
+                    local d = (Vector2.new(screen.X, screen.Y) - mouse).Magnitude
+                    if d < dist then closest, dist = part, d end
+                end
+            end
+        end
+    end
+    if closest then camera.CFrame = camera.CFrame:Lerp(CFrame.new(camera.CFrame.Position, closest.Position), CFG.aimSmooth) end
+end)
+task.spawn(function()
+    while task.wait(0.05) do
+        if CFG.triggerbot then
+            local mouse = UserInputService:GetMouseLocation()
+            local ray = camera:ViewportPointToRay(mouse.X, mouse.Y)
+            local params = RaycastParams.new(); params.FilterType = Enum.RaycastFilterType.Exclude; params.FilterDescendantsInstances = {lp.Character, workspace:FindFirstChild("AdminESP")}
+            local result = workspace:Raycast(ray.Origin, ray.Direction * CFG.triggerRange, params)
+            if result and result.Instance then
+                local hitModel = result.Instance:FindFirstAncestorOfClass("Model")
+                local hitPlayer = hitModel and Players:GetPlayerFromCharacter(hitModel)
+                if hitPlayer and hitPlayer ~= lp and not isTeam(hitPlayer) then
+                    local vim = game:GetService("VirtualInputManager")
+                    vim:SendMouseButtonEvent(mouse.X, mouse.Y, 0, true, game, 1)
+                    task.wait(0.02)
+                    vim:SendMouseButtonEvent(mouse.X, mouse.Y, 0, false, game, 1)
+                    task.wait(CFG.triggerDelay)
+                end
+            end
+        end
+    end
+end)
+
+-- ============================================
+-- TAB: MOVEMENT
+-- ============================================
+local movePage = addTab("Movement")
+makeSlider(movePage, "WalkSpeed", 16, 300, "walkSpeed", function(v) local char = lp.Character; local hum = char and char:FindFirstChildOfClass("Humanoid"); if hum then hum.WalkSpeed = v end end)
+makeSlider(movePage, "JumpPower", 50, 300, "jumpPower", function(v) local char = lp.Character; local hum = char and char:FindFirstChildOfClass("Humanoid"); if hum then hum.JumpPower = v; hum.UseJumpPower = true end end)
+makeSlider(movePage, "Fly Speed", 10, 300, "flySpeed")
+makeToggle(movePage, "Fly", "fly", function(v)
+    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if v and hrp then
+        local bv = Instance.new("BodyVelocity", hrp); bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        local bg = Instance.new("BodyGyro", hrp); bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge); bg.P = 9e4
+        flags.flyConn = RunService.RenderStepped:Connect(function()
+            if not CFG.fly or not hrp.Parent then return end
+            local cam = camera; local move = Vector3.new()
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + cam.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move - cam.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move - cam.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + cam.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0,1,0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move = move - Vector3.new(0,1,0) end
+            bv.Velocity = move * CFG.flySpeed; bg.CFrame = cam.CFrame
+        end)
+    elseif not v then
+        if flags.flyConn then flags.flyConn:Disconnect() end
+        if hrp then for _, c in ipairs(hrp:GetChildren()) do if c:IsA("BodyVelocity") or c:IsA("BodyGyro") then c:Destroy() end end end
+    end
+end)
+makeToggle(movePage, "Noclip", "noclip", function(v)
+    if v and not flags.noclipConn then
+        flags.noclipConn = RunService.Stepped:Connect(function()
+            if not CFG.noclip then return end
+            if lp.Character then for _, p in ipairs(lp.Character:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end
+        end)
+    elseif not v and flags.noclipConn then flags.noclipConn:Disconnect(); flags.noclipConn = nil end
+end)
+makeToggle(movePage, "Infinite Jump", "infJump", function(v)
+    if v and not flags.infJumpConn then
+        flags.infJumpConn = UserInputService.JumpRequest:Connect(function()
+            if CFG.infJump then local h = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid"); if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end
+        end)
+    elseif not v and flags.infJumpConn then flags.infJumpConn:Disconnect(); flags.infJumpConn = nil end
+end)
+makeToggle(movePage, "Speed Lock", "speedLock")
+makeToggle(movePage, "Bunnyhop", "bunnyhop")
+
+-- ============================================
+-- TAB: VISUALS
+-- ============================================
+local visPage = addTab("Visuals")
+makeToggle(visPage, "Fullbright", "fullbright", function(v)
+    if v then
+        Lighting.Ambient = Color3.fromRGB(200, 200, 200); Lighting.Brightness = 3
+    else
+        Lighting.Ambient = Color3.fromRGB(70, 70, 70); Lighting.Brightness = 1
+    end
+end)
+makeToggle(visPage, "Player ESP", "esp")
+makeToggle(visPage, "Tracers", "tracers")
+makeToggle(visPage, "Name ESP", "nameEsp")
+
+-- ============================================
+-- TAB: SERVER
+-- ============================================
+local serverPage = addTab("Server")
+local jidBox = Instance.new("TextBox")
+jidBox.Size = UDim2.new(1, 0, 0, 32); jidBox.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+jidBox.PlaceholderText = "Target Job ID..."; jidBox.Text = ""
+jidBox.TextColor3 = Color3.fromRGB(0, 255, 200); jidBox.Font = Enum.Font.Gotham; jidBox.TextSize = 12
+jidBox.BorderSizePixel = 0; jidBox.Parent = serverPage
+local jic = Instance.new("UICorner"); jic.CornerRadius = UDim.new(0, 6); jic.Parent = jidBox
+
+makeButton(serverPage, "Join Server", UDim2.new(1, 0, 0, 32), Color3.fromRGB(40, 100, 200)).MouseButton1Click:Connect(function()
+    local jid = jidBox.Text
+    if jid and jid ~= "" then pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, jid, lp) end) end
+end)
+
+makeButton(serverPage, "Copy My Job ID", UDim2.new(1, 0, 0, 32), Color3.fromRGB(60, 60, 80)).MouseButton1Click:Connect(function()
+    pcall(function() setclipboard(game.JobId) end)
+end)
+
+makeButton(serverPage, "Rejoin", UDim2.new(1, 0, 0, 32), Color3.fromRGB(80, 80, 60)).MouseButton1Click:Connect(function()
+    TeleportService:Teleport(game.PlaceId, lp)
+end)
+
+makeButton(serverPage, "Server Hop", UDim2.new(1, 0, 0, 32), Color3.fromRGB(120, 80, 60)).MouseButton1Click:Connect(function()
+    local servers = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100"))
+    for _, s in ipairs(servers.data) do
+        if s.id ~= game.JobId and s.playing < s.maxPlayers then
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, lp)
+            break
+        end
+    end
+end)
+
+-- ============================================
+-- TAB: TROLL
+-- ============================================
+local trollPage = addTab("Troll")
+local musicInput = Instance.new("TextBox")
+musicInput.Size = UDim2.new(1, 0, 0, 32); musicInput.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+musicInput.PlaceholderText = "Roblox Audio ID (e.g. 1837832580)"; musicInput.Text = ""
+musicInput.TextColor3 = Color3.fromRGB(0, 255, 200); musicInput.Font = Enum.Font.Gotham; musicInput.TextSize = 12
+musicInput.BorderSizePixel = 0; musicInput.Parent = trollPage
+local mic = Instance.new("UICorner"); mic.CornerRadius = UDim.new(0, 6); mic.Parent = musicInput
+
+makeButton(trollPage, "Play Music", UDim2.new(1, 0, 0, 32), Color3.fromRGB(200, 50, 50)).MouseButton1Click:Connect(function()
+    local id = musicInput.Text
+    if id and tonumber(id) then
+        if flags.musicInstance then flags.musicInstance:Destroy() end
+        local sound = Instance.new("Sound", lp.Character.HumanoidRootPart)
+        sound.SoundId = "rbxassetid://" .. id
+        sound.Volume = 2
+        sound.Looped = true
+        sound:Play()
+        flags.musicInstance = sound
+    end
+end)
+
+makeButton(trollPage, "Stop Music", UDim2.new(1, 0, 0, 32), Color3.fromRGB(100, 40, 40)).MouseButton1Click:Connect(function()
+    if flags.musicInstance then flags.musicInstance:Destroy(); flags.musicInstance = nil end
+end)
+
+makeButton(trollPage, "Ragdoll Self", UDim2.new(1, 0, 0, 32), Color3.fromRGB(200, 100, 50)).MouseButton1Click:Connect(function()
+    if lp.Character then lp.Character:BreakJoints() end
+end)
+
+makeButton(trollPage, "Giant Me", UDim2.new(1, 0, 0, 32), Color3.fromRGB(100, 200, 100)).MouseButton1Click:Connect(function()
+    if lp.Character then
+        local scale = lp.Character:FindFirstChild("BodyHeightScale") or Instance.new("NumberValue", lp.Character)
+        scale.Name = "BodyHeightScale"; scale.Value = 5
+        local width = lp.Character:FindFirstChild("BodyWidthScale") or Instance.new("NumberValue", lp.Character)
+        width.Name = "BodyWidthScale"; width.Value = 5
+        local depth = lp.Character:FindFirstChild("BodyDepthScale") or Instance.new("NumberValue", lp.Character)
+        depth.Name = "BodyDepthScale"; depth.Value = 5
+    end
+end)
+
+makeButton(trollPage, "Reset Size", UDim2.new(1, 0, 0, 32), Color3.fromRGB(80, 80, 80)).MouseButton1Click:Connect(function()
+    if lp.Character then
+        local scale = lp.Character:FindFirstChild("BodyHeightScale"); if scale then scale.Value = 1 end
+        local width = lp.Character:FindFirstChild("BodyWidthScale"); if width then width.Value = 1 end
+        local depth = lp.Character:FindFirstChild("BodyDepthScale"); if depth then depth.Value = 1 end
+    end
+end)
+
+-- ============================================
+-- TAB: WAYPOINTS
+-- ============================================
+local wpPage = addTab("Waypoints")
+local wpList = Instance.new("ScrollingFrame")
+wpList.Size = UDim2.new(1, 0, 1, -45); wpList.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+wpList.BorderSizePixel = 0; wpList.CanvasSize = UDim2.new(0, 0, 0, 0); wpList.ScrollBarThickness = 2; wpList.Parent = wpPage
+local wplc = Instance.new("UICorner"); wplc.CornerRadius = UDim.new(0, 8); wplc.Parent = wpList
+local wpLayout = Instance.new("UIListLayout"); wpLayout.Padding = UDim.new(0, 2); wpLayout.Parent = wpList
+local waypoints = {}
+local function addWaypoint()
+    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local wpName = "WP #" .. (#waypoints + 1)
+        local wp = {name = wpName, pos = hrp.CFrame}
+        table.insert(waypoints, wp)
+        local row = makeButton(wpList, "  " .. wpName .. " (Click to TP)", UDim2.new(1, -4, 0, 26), Color3.fromRGB(20, 20, 30), Color3.fromRGB(35, 35, 50))
+        row.TextXAlignment = Enum.TextXAlignment.Left
+        row.MouseButton1Click:Connect(function() if lp.Character then lp.Character.HumanoidRootPart.CFrame = wp.pos end end)
+        wpList.CanvasSize = UDim2.new(0, 0, 0, #waypoints * 30)
+    end
+end
+local saveWpBtn = makeButton(wpPage, "Save Current Position", UDim2.new(1, 0, 0, 32), Color3.fromRGB(40, 90, 40))
+saveWpBtn.Position = UDim2.new(0, 0, 1, -36); saveWpBtn.MouseButton1Click:Connect(addWaypoint)
+
+-- ============================================
+-- TAB: KEYBINDS
+-- ============================================
+local infoPage = addTab("Keybinds")
+local function makeBindButton(parent, label, cfKey)
+    local btn = makeButton(parent, "  " .. label .. ": " .. CFG[cfKey], UDim2.new(1, 0, 0, 32), Color3.fromRGB(25, 25, 35), Color3.fromRGB(40, 40, 60))
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.MouseButton1Click:Connect(function()
+        btn.Text = "  " .. label .. ": [Press Key]"
+        flags.bindingKey = {btn = btn, label = label, cfKey = cfKey}
+    end)
+    table.insert(flags.uiItems, {type = "bind", key = cfKey, update = function(val) btn.Text = "  " .. label .. ": " .. val end})
+end
+makeBindButton(infoPage, "Toggle Speed", "keySpeed")
+makeBindButton(infoPage, "Toggle Jump", "keyJump")
+makeBindButton(infoPage, "Toggle Aimbot", "keyAimbot")
+makeBindButton(infoPage, "Toggle Triggerbot", "keyTriggerbot")
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if flags.bindingKey then
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            local keyName = input.KeyCode.Name
+            CFG[flags.bindingKey.cfKey] = keyName
+            flags.bindingKey.btn.Text = "  " .. flags.bindingKey.label .. ": " .. keyName
+            flags.bindingKey = nil
+            saveConfig()
+        end
+    else
+        if input.KeyCode.Name == CFG.keySpeed and CFG.keySpeed ~= "None" then CFG.walkSpeed = (CFG.walkSpeed == 16) and 100 or 16 end
+        if input.KeyCode.Name == CFG.keyJump and CFG.keyJump ~= "None" then CFG.jumpPower = (CFG.jumpPower == 50) and 150 or 50 end
+        if input.KeyCode.Name == CFG.keyAimbot and CFG.keyAimbot ~= "None" then CFG.aimbot = not CFG.aimbot end
+        if input.KeyCode.Name == CFG.keyTriggerbot and CFG.keyTriggerbot ~= "None" then CFG.triggerbot = not CFG.triggerbot end
+    end
+end)
+
+-- ============================================
+-- TAB: SETTINGS
+-- ============================================
+local setPageTab = addTab("Settings")
+local saveNameBox = Instance.new("TextBox")
+saveNameBox.Size = UDim2.new(1, 0, 0, 32); saveNameBox.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+saveNameBox.PlaceholderText = "Profile Name (e.g. rage.json)"; saveNameBox.Text = ""
+saveNameBox.TextColor3 = Color3.fromRGB(0, 255, 200); saveNameBox.Font = Enum.Font.Gotham; saveNameBox.TextSize = 12
+saveNameBox.BorderSizePixel = 0; saveNameBox.Parent = setPageTab
+local snc = Instance.new("UICorner"); snc.CornerRadius = UDim.new(0, 6); snc.Parent = saveNameBox
+
+local saveBtn = makeButton(setPageTab, "Save New Config Profile", UDim2.new(1, 0, 0, 32), Color3.fromRGB(40, 90, 40))
+saveBtn.MouseButton1Click:Connect(function()
+    local name = saveNameBox.Text
+    if name == "" then name = "custom_config.json" end
+    saveConfig(name)
+    refreshConfigList()
+end)
+
+local unloadBtn = makeButton(setPageTab, "Unload GUI", UDim2.new(1, 0, 0, 32), Color3.fromRGB(100, 40, 40))
+unloadBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
+
+-- ============================================
+-- DRAG & INIT
+-- ============================================
+UserInputService.InputBegan:Connect(function(i, gpe) 
+    if not gpe and i.KeyCode == Enum.KeyCode.Insert then main.Visible = not main.Visible end 
+end)
+
+local dragging, dragStart, startPos
+topBar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; dragStart = i.Position; startPos = main.Position end end)
+UserInputService.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then local d = i.Position - dragStart; main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) end end)
+UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+
+setPage("Players")
+for _, item in ipairs(flags.uiItems) do item.update(CFG[item.key]) end
+refreshConfigList()
+
+print("[Ollie Admin MEGA] loaded.")
