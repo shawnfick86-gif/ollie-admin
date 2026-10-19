@@ -1,5 +1,5 @@
 -- ============================================
--- OLLIE ADMIN  •  v31 (The Mega Update - Fixed)
+-- OLLIE ADMIN  •  v32 (Fixed Text & UI)
 -- ============================================
 
 local Players           = game:GetService("Players")
@@ -18,20 +18,13 @@ local camera = workspace.CurrentCamera
 -- CONFIG STATE
 -- ============================================
 local CFG = {
-    -- Combat
     teamCheck = true, aimbot = false, aimPart = "Head", aimFov = 150, aimSmooth = 0.2,
     silentAim = false, triggerbot = false, triggerDelay = 0.1, triggerRange = 200,
     rapidFire = false, rapidFireRate = 0.04, hitboxExpand = false, hitboxSize = 5,
     noRecoil = false, noSpread = false, infAmmo = false, autoLock = false,
-    
-    -- Movement
     walkSpeed = 16, jumpPower = 50, fly = false, flySpeed = 50, noclip = false, infJump = false,
     speedLock = true, autoClicker = false, bunnyhop = false,
-    
-    -- Visuals
     esp = false, fullbright = false, tracers = false, fovCircle = false, nameEsp = false,
-    
-    -- Keybinds
     keySpeed = "None", keyJump = "None", keyAimbot = "None", keyTriggerbot = "None",
 }
 
@@ -308,7 +301,7 @@ local function makeButton(parent, text, size, bgColor, hoverColor)
     btn.Size = size or UDim2.new(1, 0, 0, 28)
     btn.BackgroundColor3 = bgColor or Color3.fromRGB(30, 30, 45)
     btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(220, 220, 220)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255) -- FIXED: Force white text
     btn.Font = Enum.Font.Gotham
     btn.TextSize = 12
     btn.BorderSizePixel = 0
@@ -317,7 +310,6 @@ local function makeButton(parent, text, size, bgColor, hoverColor)
     
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 6); c.Parent = btn
     local stroke = Instance.new("UIStroke"); stroke.Color = Color3.fromRGB(80, 100, 255); stroke.Thickness = 1; stroke.Transparency = 0.7; stroke.Parent = btn
-    local grad = Instance.new("UIGradient"); grad.Color = ColorSequence.new(Color3.fromRGB(40, 40, 55), Color3.fromRGB(25, 25, 35)); grad.Rotation = 90; grad.Parent = btn
 
     btn.MouseEnter:Connect(function()
         TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = hoverColor or Color3.fromRGB(50, 50, 80)}):Play()
@@ -342,11 +334,9 @@ local function makeToggle(parent, label, cfKey, cb)
     indicator.BorderSizePixel = 0
     indicator.Parent = btn
     local ic = Instance.new("UICorner"); ic.CornerRadius = UDim.new(1, 0); ic.Parent = indicator
-    local ig = Instance.new("UIGradient"); ig.Color = ColorSequence.new(indicator.BackgroundColor3); ig.Parent = indicator
 
     local function updateState(state)
         indicator.BackgroundColor3 = state and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 60, 60)
-        ig.Color = ColorSequence.new(indicator.BackgroundColor3)
     end
     
     btn.MouseButton1Click:Connect(function()
