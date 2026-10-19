@@ -1,5 +1,5 @@
 -- ============================================
--- OLLIE ADMIN  •  v32 (Fixed Text & UI)
+-- OLLIE ADMIN  •  v33 (The Ultimate Fix)
 -- ============================================
 
 local Players           = game:GetService("Players")
@@ -18,13 +18,17 @@ local camera = workspace.CurrentCamera
 -- CONFIG STATE
 -- ============================================
 local CFG = {
-    teamCheck = true, aimbot = false, aimPart = "Head", aimFov = 150, aimSmooth = 0.2,
+    teamCheck = "Enemies", -- "Enemies", "Same Team", "All"
+    aimbot = false, aimPart = "Head", aimFov = 150, aimSmooth = 0.2,
     silentAim = false, triggerbot = false, triggerDelay = 0.1, triggerRange = 200,
     rapidFire = false, rapidFireRate = 0.04, hitboxExpand = false, hitboxSize = 5,
-    noRecoil = false, noSpread = false, infAmmo = false, autoLock = false,
+    noRecoil = false, noSpread = false, infAmmo = false,
+    
     walkSpeed = 16, jumpPower = 50, fly = false, flySpeed = 50, noclip = false, infJump = false,
     speedLock = true, autoClicker = false, bunnyhop = false,
-    esp = false, fullbright = false, tracers = false, fovCircle = false, nameEsp = false,
+    
+    esp = false, fullbright = false, tracers = false,
+    
     keySpeed = "None", keyJump = "None", keyAimbot = "None", keyTriggerbot = "None",
 }
 
@@ -42,8 +46,13 @@ local flags = {
 -- HELPERS
 -- ============================================
 local function isTeam(plr)
-    if not CFG.teamCheck then return false end
-    if not lp.Team then return false end
+    if CFG.teamCheck == "All" then return false end
+    if CFG.teamCheck == "Same Team" then
+        if not lp.Team or not plr.Team then return false end
+        return plr.Team == lp.Team
+    end
+    -- Default: "Enemies"
+    if not lp.Team or not plr.Team then return false end
     return plr.Team == lp.Team
 end
 
@@ -301,7 +310,7 @@ local function makeButton(parent, text, size, bgColor, hoverColor)
     btn.Size = size or UDim2.new(1, 0, 0, 28)
     btn.BackgroundColor3 = bgColor or Color3.fromRGB(30, 30, 45)
     btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255) -- FIXED: Force white text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.Gotham
     btn.TextSize = 12
     btn.BorderSizePixel = 0
@@ -416,6 +425,39 @@ local function makeSlider(parent, label, min, max, cfKey, cb)
     end)
     table.insert(flags.uiItems, {type = "slider", key = cfKey, update = updateVisual})
     return holder
+end
+
+local function makeDropdown(parent, label, options, cfKey, cb)
+    local btn = makeButton(parent, "  " .. label .. ": " .. tostring(CFG[cfKey]), UDim2.new(1, 0, 0, 32))
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local isOpen = false
+    local list = Instance.new("Frame")
+    list.Size = UDim2.new(1, 0, 0, #options * 26)
+    list.Position = UDim2.new(0, 0, 1, 0)
+    list.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    list.Visible = false
+    list.ZIndex = 10
+    list.Parent = btn
+    local lc = Instance.new("UICorner"); lc.CornerRadius = UDim.new(0, 6); lc.Parent = list
+    
+    btn.MouseButton1Click:Connect(function()
+        isOpen = not isOpen
+        list.Visible = isOpen
+    end)
+    
+    for i, opt in ipairs(options) do
+        local ob = makeButton(list, "  " .. opt, UDim2.new(1, 0, 0, 24), Color3.fromRGB(25, 25, 35))
+        ob.Position = UDim2.new(0, 0, 0, (i-1)*26)
+        ob.MouseButton1Click:Connect(function()
+            CFG[cfKey] = opt
+            btn.Text = "  " .. label .. ": " .. tostring(opt)
+            list.Visible = false
+            isOpen = false
+            saveConfig()
+            if cb then cb(opt) end
+        end)
+    end
 end
 
 -- ============================================
@@ -603,6 +645,19 @@ local function refreshPlayers()
             n = n + 1
             local row = makeButton(pList, "  " .. p.Name, UDim2.new(1, 0, 0, 28), Color3.fromRGB(20, 20, 30))
             row.TextXAlignment = Enum.TextXAlignment.Left
+            
+            -- Team Status Label
+            local statusLbl = Instance.new("TextLabel")
+            statusLbl.Size = UDim2.new(0, 100, 1, 0)
+            statusLbl.Position = UDim2.new(1, -110, 0, 0)
+            statusLbl.BackgroundTransparency = 1
+            statusLbl.Text = p.Team and p.Team.Name or "None"
+            statusLbl.TextColor3 = isTeam(p) and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 60, 60)
+            statusLbl.Font = Enum.Font.Gotham
+            statusLbl.TextSize = 11
+            statusLbl.TextXAlignment = Enum.TextXAlignment.Right
+            statusLbl.Parent = row
+            
             row.MouseButton1Click:Connect(function()
                 CFG.selectedPlayer = p
                 for _, r in ipairs(pList:GetChildren()) do if r:IsA("TextButton") then r.BackgroundColor3 = Color3.fromRGB(20, 20, 30) end end
@@ -744,7 +799,7 @@ end)
 -- TAB: COMBAT
 -- ============================================
 local combatPage = addTab("Combat")
-makeToggle(combatPage, "Team Check", "teamCheck")
+makeDropdown(combatPage, "Team Check", {"Enemies", "Same Team", "All"}, "teamCheck")
 makeToggle(combatPage, "Aimbot (RMB)", "aimbot")
 makeSlider(combatPage, "Aimbot FOV", 20, 500, "aimFov")
 makeSlider(combatPage, "Aimbot Smoothness", 0.05, 1, "aimSmooth")
@@ -797,6 +852,31 @@ local visPage = addTab("Visuals")
 makeToggle(visPage, "Fullbright", "fullbright")
 makeToggle(visPage, "ESP", "esp")
 makeToggle(visPage, "Tracers", "tracers")
+
+-- ============================================
+-- TAB: WAYPOINTS
+-- ============================================
+local wpPage = addTab("Waypoints")
+local wpList = Instance.new("ScrollingFrame")
+wpList.Size = UDim2.new(1, 0, 1, -40); wpList.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+wpList.BorderSizePixel = 0; wpList.CanvasSize = UDim2.new(0, 0, 0, 0); wpList.ScrollBarThickness = 2; wpList.Parent = wpPage
+local wplc = Instance.new("UICorner"); wplc.CornerRadius = UDim.new(0, 8); wplc.Parent = wpList
+local wpLayout = Instance.new("UIListLayout"); wpLayout.Padding = UDim.new(0, 2); wpLayout.Parent = wpList
+local waypoints = {}
+local function addWaypoint()
+    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local wpName = "WP #" .. (#waypoints + 1)
+        local wp = {name = wpName, pos = hrp.CFrame}
+        table.insert(waypoints, wp)
+        local row = makeButton(wpList, "  " .. wpName .. " (Click to TP)", UDim2.new(1, -4, 0, 26), Color3.fromRGB(20, 20, 30))
+        row.TextXAlignment = Enum.TextXAlignment.Left
+        row.MouseButton1Click:Connect(function() if lp.Character then lp.Character.HumanoidRootPart.CFrame = wp.pos end end)
+        wpList.CanvasSize = UDim2.new(0, 0, 0, #waypoints * 30)
+    end
+end
+local saveWpBtn = makeButton(wpPage, "Save Current Position", UDim2.new(1, 0, 0, 32), Color3.fromRGB(40, 90, 40))
+saveWpBtn.Position = UDim2.new(0, 0, 1, -36); saveWpBtn.MouseButton1Click:Connect(addWaypoint)
 
 -- ============================================
 -- TAB: SERVER
