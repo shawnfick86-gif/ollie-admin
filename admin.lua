@@ -1,5 +1,6 @@
 -- ============================================
--- OLLIE ADMIN  •  v34 (Aimbot & Team Fix)
+-- OLLIE ADMIN  •  v36 (The Clean UI Update)
+-- Real Menu Look  •  13 Tabs  •  Human Touch
 -- ============================================
 
 local Players           = game:GetService("Players")
@@ -18,17 +19,13 @@ local camera = workspace.CurrentCamera
 -- CONFIG STATE
 -- ============================================
 local CFG = {
-    teamCheck = true, -- Simple boolean now
-    aimbot = false, aimPart = "Head", aimFov = 150, aimSmooth = 0.2,
+    teamCheck = true, aimbot = false, aimPart = "Head", aimFov = 150, aimSmooth = 0.2,
     silentAim = false, triggerbot = false, triggerDelay = 0.1, triggerRange = 200,
     rapidFire = false, rapidFireRate = 0.04, hitboxExpand = false, hitboxSize = 5,
     noRecoil = false, noSpread = false, infAmmo = false,
-    
     walkSpeed = 16, jumpPower = 50, fly = false, flySpeed = 50, noclip = false, infJump = false,
     speedLock = true, autoClicker = false, bunnyhop = false,
-    
     esp = false, fullbright = false, tracers = false,
-    
     keySpeed = "None", keyJump = "None", keyAimbot = "None", keyTriggerbot = "None",
 }
 
@@ -106,7 +103,7 @@ end
 loadConfig() 
 
 -- ============================================
--- LOGIC (Silent Aim, Hitbox, Weapon Mods)
+-- LOGIC
 -- ============================================
 if getrawmetatable and hookmetamethod then
     local oldNamecall
@@ -285,15 +282,21 @@ end
 RunService.RenderStepped:Connect(updateESP)
 
 -- ============================================
--- UI BUILDERS
+-- UI BUILDERS (Clean Theme)
 -- ============================================
-local function makeLabel(parent, text, size, color, font)
+local FONT = Enum.Font.GothamMedium
+local TEXT_COLOR = Color3.fromRGB(220, 220, 230)
+local BG_COLOR = Color3.fromRGB(22, 22, 28)
+local HOVER_COLOR = Color3.fromRGB(35, 35, 45)
+local ACCENT_COLOR = Color3.fromRGB(0, 180, 255)
+
+local function makeLabel(parent, text, size, color)
     local lbl = Instance.new("TextLabel")
     lbl.Size = size or UDim2.new(1, 0, 0, 20)
     lbl.BackgroundTransparency = 1
     lbl.Text = text
-    lbl.TextColor3 = color or Color3.fromRGB(220, 220, 220)
-    lbl.Font = font or Enum.Font.Gotham
+    lbl.TextColor3 = color or TEXT_COLOR
+    lbl.Font = FONT
     lbl.TextSize = 13
     lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.Parent = parent
@@ -303,25 +306,23 @@ end
 local function makeButton(parent, text, size, bgColor, hoverColor)
     local btn = Instance.new("TextButton")
     btn.Size = size or UDim2.new(1, 0, 0, 28)
-    btn.BackgroundColor3 = bgColor or Color3.fromRGB(30, 30, 45)
+    btn.BackgroundColor3 = bgColor or BG_COLOR
     btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.Gotham
+    btn.TextColor3 = TEXT_COLOR
+    btn.Font = FONT
     btn.TextSize = 12
     btn.BorderSizePixel = 0
     btn.AutoButtonColor = false
     btn.Parent = parent
     
-    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 6); c.Parent = btn
-    local stroke = Instance.new("UIStroke"); stroke.Color = Color3.fromRGB(80, 100, 255); stroke.Thickness = 1; stroke.Transparency = 0.7; stroke.Parent = btn
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 4); c.Parent = btn
+    local stroke = Instance.new("UIStroke"); stroke.Color = Color3.fromRGB(40, 40, 50); stroke.Thickness = 1; stroke.Parent = btn
 
     btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = hoverColor or Color3.fromRGB(50, 50, 80)}):Play()
-        TweenService:Create(stroke, TweenInfo.new(0.2), {Transparency = 0}):Play()
+        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = hoverColor or HOVER_COLOR}):Play()
     end)
     btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = bgColor or Color3.fromRGB(30, 30, 45)}):Play()
-        TweenService:Create(stroke, TweenInfo.new(0.2), {Transparency = 0.7}):Play()
+        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = bgColor or BG_COLOR}):Play()
     end)
     return btn
 end
@@ -334,13 +335,13 @@ local function makeToggle(parent, label, cfKey, cb)
     local indicator = Instance.new("Frame")
     indicator.Size = UDim2.new(0, 4, 1, -8)
     indicator.Position = UDim2.new(0, 4, 0, 4)
-    indicator.BackgroundColor3 = default and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 60, 60)
+    indicator.BackgroundColor3 = default and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(200, 50, 50)
     indicator.BorderSizePixel = 0
     indicator.Parent = btn
     local ic = Instance.new("UICorner"); ic.CornerRadius = UDim.new(1, 0); ic.Parent = indicator
 
     local function updateState(state)
-        indicator.BackgroundColor3 = state and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 60, 60)
+        indicator.BackgroundColor3 = state and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(200, 50, 50)
     end
     
     btn.MouseButton1Click:Connect(function()
@@ -357,14 +358,14 @@ local function makeTextInput(parent, cfKey, cb)
     local box = Instance.new("TextBox")
     box.Size = UDim2.new(0, 50, 0, 20)
     box.Position = UDim2.new(1, -55, 0, 2)
-    box.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-    box.TextColor3 = Color3.fromRGB(0, 255, 150)
+    box.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+    box.TextColor3 = Color3.fromRGB(255, 255, 255)
     box.Text = tostring(CFG[cfKey])
     box.Font = Enum.Font.Code
     box.TextSize = 12
     box.BorderSizePixel = 0
     box.Parent = parent
-    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 4); c.Parent = box
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 3); c.Parent = box
     
     box.FocusLost:Connect(function()
         local num = tonumber(box.Text)
@@ -383,21 +384,22 @@ local function makeSlider(parent, label, min, max, cfKey, cb)
     local default = CFG[cfKey]
     local holder = Instance.new("Frame")
     holder.Size = UDim2.new(1, 0, 0, 44)
-    holder.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    holder.BackgroundColor3 = BG_COLOR
     holder.BorderSizePixel = 0
     holder.Parent = parent
-    local hc = Instance.new("UICorner"); hc.CornerRadius = UDim.new(0, 6); hc.Parent = holder
+    local hc = Instance.new("UICorner"); hc.CornerRadius = UDim.new(0, 4); hc.Parent = holder
+    local hs = Instance.new("UIStroke"); hs.Color = Color3.fromRGB(40, 40, 50); hs.Parent = holder
     
     local lbl = makeLabel(holder, label, UDim2.new(1, -60, 0, 20)); lbl.Position = UDim2.new(0, 10, 0, 4)
     makeTextInput(holder, cfKey, cb)
     
-    local bar = Instance.new("Frame"); bar.Size = UDim2.new(1, -20, 0, 6); bar.Position = UDim2.new(0, 10, 0, 30)
-    bar.BackgroundColor3 = Color3.fromRGB(30, 30, 45); bar.BorderSizePixel = 0; bar.Parent = holder
+    local bar = Instance.new("Frame"); bar.Size = UDim2.new(1, -20, 0, 4); bar.Position = UDim2.new(0, 10, 0, 30)
+    bar.BackgroundColor3 = Color3.fromRGB(35, 35, 45); bar.BorderSizePixel = 0; bar.Parent = holder
     local bc = Instance.new("UICorner"); bc.CornerRadius = UDim.new(1, 0); bc.Parent = bar
     
     local fill = Instance.new("Frame")
     fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-    fill.BackgroundColor3 = Color3.fromRGB(0, 200, 255); fill.BorderSizePixel = 0; fill.Parent = bar
+    fill.BackgroundColor3 = ACCENT_COLOR; fill.BorderSizePixel = 0; fill.Parent = bar
     local fcn = Instance.new("UICorner"); fcn.CornerRadius = UDim.new(1, 0); fcn.Parent = fill
     
     local function updateVisual(val)
@@ -433,33 +435,47 @@ gui.Parent = pg
 local main = Instance.new("Frame")
 main.Size = UDim2.new(0, 700, 0, 460)
 main.Position = UDim2.new(0.5, -350, 0.5, -230)
-main.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+main.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
 main.BorderSizePixel = 0
 main.Active = true
 main.Parent = gui
-local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 12); mc.Parent = main
-local ms = Instance.new("UIStroke"); ms.Color = Color3.fromRGB(0, 200, 255); ms.Thickness = 1.5; ms.Transparency = 0.5; ms.Parent = main
+local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 6); mc.Parent = main
+local ms = Instance.new("UIStroke"); ms.Color = Color3.fromRGB(60, 60, 70); ms.Thickness = 1; ms.Parent = main
+
+-- Shadow
+local shadow = Instance.new("ImageLabel")
+shadow.Size = UDim2.new(1, 30, 1, 30)
+shadow.Position = UDim2.new(0, -15, 0, -15)
+shadow.BackgroundTransparency = 1
+shadow.Image = "rbxassetid://1316045217"
+shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+shadow.ImageTransparency = 0.5
+shadow.ScaleType = Enum.ScaleType.Slice
+shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+shadow.ZIndex = 0
+shadow.Parent = main
 
 local topBar = Instance.new("Frame")
 topBar.Size = UDim2.new(1, 0, 0, 40)
 topBar.BackgroundTransparency = 1
 topBar.Parent = main
-local title = makeLabel(topBar, "  OLLIE ADMIN PREMIUM", UDim2.new(1, 0, 1, 0), Color3.fromRGB(255, 255, 255), Enum.Font.GothamBold)
-title.TextSize = 16
+local title = makeLabel(topBar, "  OLLIE ADMIN", UDim2.new(1, 0, 1, 0), Color3.fromRGB(255, 255, 255))
+title.Font = Enum.Font.GothamBold
+title.TextSize = 15
 
-local closeBtn = makeButton(topBar, "X", UDim2.new(0, 24, 0, 24), Color3.fromRGB(255, 60, 60))
+local closeBtn = makeButton(topBar, "X", UDim2.new(0, 24, 0, 24), Color3.fromRGB(40, 40, 50))
 closeBtn.Position = UDim2.new(1, -34, 0, 8)
 closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
 local sidebar = Instance.new("Frame")
 sidebar.Size = UDim2.new(0, 130, 1, -50)
 sidebar.Position = UDim2.new(0, 10, 0, 50)
-sidebar.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+sidebar.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
 sidebar.BorderSizePixel = 0
 sidebar.Parent = main
-local sc = Instance.new("UICorner"); sc.CornerRadius = UDim.new(0, 8); sc.Parent = sidebar
+local sc = Instance.new("UICorner"); sc.CornerRadius = UDim.new(0, 4); sc.Parent = sidebar
 
-local navLayout = Instance.new("UIListLayout"); navLayout.Padding = UDim.new(0, 4); navLayout.SortOrder = Enum.SortOrder.LayoutOrder; navLayout.Parent = sidebar
+local navLayout = Instance.new("UIListLayout"); navLayout.Padding = UDim.new(0, 2); navLayout.SortOrder = Enum.SortOrder.LayoutOrder; navLayout.Parent = sidebar
 local navPad = Instance.new("UIPadding"); navPad.PaddingTop = UDim.new(0, 10); navPad.PaddingLeft = UDim.new(0, 5); navPad.PaddingRight = UDim.new(0, 5); navPad.Parent = sidebar
 
 local content = Instance.new("Frame")
@@ -478,18 +494,19 @@ local function setPage(name)
     if currentPage then currentPage.Visible = true end
     
     for _, btn in pairs(navButtons) do
-        btn.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
-        btn.TextColor3 = Color3.fromRGB(150, 150, 150)
+        btn.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+        btn.TextColor3 = Color3.fromRGB(150, 150, 160)
     end
     if navButtons[name] then
-        navButtons[name].BackgroundColor3 = Color3.fromRGB(25, 25, 40)
-        navButtons[name].TextColor3 = Color3.fromRGB(0, 255, 200)
+        navButtons[name].BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+        navButtons[name].TextColor3 = Color3.fromRGB(255, 255, 255)
     end
 end
 
 local function addTab(name)
-    local btn = makeButton(sidebar, "  " .. name, UDim2.new(1, 0, 0, 30))
+    local btn = makeButton(sidebar, "  " .. name, UDim2.new(1, 0, 0, 30), Color3.fromRGB(18, 18, 24), Color3.fromRGB(30, 30, 40))
     btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.UIStroke.Transparency = 1
     navButtons[name] = btn
     
     local page = Instance.new("ScrollingFrame")
@@ -500,7 +517,7 @@ local function addTab(name)
     page.CanvasSize = UDim2.new(0, 0, 0, 0)
     page.Visible = false
     page.Parent = content
-    local pl = Instance.new("UIListLayout"); pl.Padding = UDim.new(0, 8); pl.Parent = page
+    local pl = Instance.new("UIListLayout"); pl.Padding = UDim.new(0, 6); pl.Parent = page
     pages[name] = page
     
     btn.MouseButton1Click:Connect(function() setPage(name) end)
@@ -513,14 +530,14 @@ end
 local configBoxFrame = Instance.new("Frame")
 configBoxFrame.Size = UDim2.new(0, 130, 1, -50)
 configBoxFrame.Position = UDim2.new(1, -140, 0, 50)
-configBoxFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+configBoxFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
 configBoxFrame.BorderSizePixel = 0
 configBoxFrame.Parent = main
-local cbc = Instance.new("UICorner"); cbc.CornerRadius = UDim.new(0, 8); cbc.Parent = configBoxFrame
+local cbc = Instance.new("UICorner"); cbc.CornerRadius = UDim.new(0, 4); cbc.Parent = configBoxFrame
 
-local configTitle = makeLabel(configBoxFrame, "  CONFIGS", UDim2.new(1, 0, 0, 20), Color3.fromRGB(0, 255, 200))
+local configTitle = makeLabel(configBoxFrame, "  CONFIGS", UDim2.new(1, 0, 0, 20), Color3.fromRGB(150, 150, 160))
 configTitle.Position = UDim2.new(0, 10, 0, 10)
-configTitle.TextSize = 10
+configTitle.TextSize = 11
 configTitle.Font = Enum.Font.GothamBold
 
 flags.configScroll = Instance.new("ScrollingFrame")
@@ -543,9 +560,10 @@ local function refreshConfigList()
             for _, f in ipairs(listfiles(CONFIG_FOLDER)) do
                 if f:lower():match("%.json$") then
                     count = count + 1
-                    local btn = makeButton(flags.configScroll, "  " .. f, UDim2.new(1, 0, 0, 24), Color3.fromRGB(20, 20, 30))
+                    local btn = makeButton(flags.configScroll, "  " .. f, UDim2.new(1, 0, 0, 24), Color3.fromRGB(25, 25, 32), Color3.fromRGB(35, 35, 45))
                     btn.TextSize = 10
                     btn.TextXAlignment = Enum.TextXAlignment.Left
+                    btn.UIStroke.Transparency = 1
                     btn.MouseButton1Click:Connect(function() loadConfig(f) end)
                 end
             end
@@ -555,35 +573,57 @@ local function refreshConfigList()
 end
 
 -- ============================================
+-- TAB: MAIN
+-- ============================================
+local mainPage = addTab("Main")
+local gNameBox = Instance.new("TextBox")
+gNameBox.Size = UDim2.new(1, 0, 0, 32); gNameBox.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+gNameBox.PlaceholderText = "Game Name"; gNameBox.Text = "Ollie Admin"
+gNameBox.TextColor3 = Color3.fromRGB(255, 255, 255); gNameBox.Font = Enum.Font.Gotham; gNameBox.TextSize = 12
+gNameBox.BorderSizePixel = 0; gNameBox.Parent = mainPage
+local gnbc = Instance.new("UICorner"); gnbc.CornerRadius = UDim.new(0, 4); gnbc.Parent = gNameBox
+
+makeButton(mainPage, "Copy Game ID", UDim2.new(1, 0, 0, 32)).MouseButton1Click:Connect(function()
+    pcall(function() setclipboard(tostring(game.PlaceId)) end)
+end)
+
+makeButton(mainPage, "Copy Job ID", UDim2.new(1, 0, 0, 32)).MouseButton1Click:Connect(function()
+    pcall(function() setclipboard(game.JobId) end)
+end)
+
+makeButton(mainPage, "Rejoin Server", UDim2.new(1, 0, 0, 32)).MouseButton1Click:Connect(function()
+    TeleportService:Teleport(game.PlaceId, lp)
+end)
+
+-- ============================================
 -- TAB: PLAYERS
 -- ============================================
 local playersPage = addTab("Players")
 local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(1, 0, 0, 30); searchBox.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-searchBox.PlaceholderText = "Search players..."; searchBox.Text = ""; searchBox.TextColor3 = Color3.fromRGB(0, 255, 200)
+searchBox.Size = UDim2.new(1, 0, 0, 30); searchBox.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+searchBox.PlaceholderText = "Search players..."; searchBox.Text = ""; searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 searchBox.Font = Enum.Font.Gotham; searchBox.TextSize = 12; searchBox.TextXAlignment = Enum.TextXAlignment.Left
 searchBox.BorderSizePixel = 0; searchBox.Parent = playersPage
-local sbc = Instance.new("UICorner"); sbc.CornerRadius = UDim.new(0, 6); sbc.Parent = searchBox
+local sbc = Instance.new("UICorner"); sbc.CornerRadius = UDim.new(0, 4); sbc.Parent = searchBox
 
 local pList = Instance.new("ScrollingFrame")
 pList.Size = UDim2.new(1, 0, 0, 130); pList.Position = UDim2.new(0, 0, 0, 40)
-pList.BackgroundColor3 = Color3.fromRGB(15, 15, 22); pList.BorderSizePixel = 0
+pList.BackgroundColor3 = Color3.fromRGB(18, 18, 24); pList.BorderSizePixel = 0
 pList.CanvasSize = UDim2.new(0, 0, 0, 0); pList.ScrollBarThickness = 2; pList.Parent = playersPage
-local plc = Instance.new("UICorner"); plc.CornerRadius = UDim.new(0, 8); plc.Parent = pList
+local plc = Instance.new("UICorner"); plc.CornerRadius = UDim.new(0, 4); plc.Parent = pList
 local pLayout = Instance.new("UIListLayout"); pLayout.Padding = UDim.new(0, 2); pLayout.Parent = pList
 
 local detailsPanel = Instance.new("Frame")
 detailsPanel.Size = UDim2.new(1, 0, 1, -250); detailsPanel.Position = UDim2.new(0, 0, 0, 205)
-detailsPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 22); detailsPanel.BorderSizePixel = 0; detailsPanel.Parent = playersPage
-local dpc = Instance.new("UICorner"); dpc.CornerRadius = UDim.new(0, 8); dpc.Parent = detailsPanel
+detailsPanel.BackgroundColor3 = Color3.fromRGB(18, 18, 24); detailsPanel.BorderSizePixel = 0; detailsPanel.Parent = playersPage
+local dpc = Instance.new("UICorner"); dpc.CornerRadius = UDim.new(0, 4); dpc.Parent = detailsPanel
 
 local avatarImg = Instance.new("ImageLabel")
 avatarImg.Size = UDim2.new(0, 60, 0, 60); avatarImg.Position = UDim2.new(0, 10, 0, 10)
-avatarImg.BackgroundColor3 = Color3.fromRGB(25, 25, 35); avatarImg.BorderSizePixel = 0; avatarImg.Parent = detailsPanel
-local avc = Instance.new("UICorner"); avc.CornerRadius = UDim.new(0, 8); avc.Parent = avatarImg
-local avs = Instance.new("UIStroke"); avs.Color = Color3.fromRGB(0, 200, 255); avs.Parent = avatarImg
+avatarImg.BackgroundColor3 = Color3.fromRGB(25, 25, 32); avatarImg.BorderSizePixel = 0; avatarImg.Parent = detailsPanel
+local avc = Instance.new("UICorner"); avc.CornerRadius = UDim.new(0, 4); avc.Parent = avatarImg
 
-local detailsText = makeLabel(detailsPanel, "Select a player...", UDim2.new(1, -80, 0, 60), Color3.fromRGB(200, 200, 200))
+local detailsText = makeLabel(detailsPanel, "Select a player...", UDim2.new(1, -80, 0, 60), Color3.fromRGB(150, 150, 160))
 detailsText.Position = UDim2.new(0, 80, 0, 10); detailsText.TextYAlignment = Enum.TextYAlignment.Top; detailsText.TextSize = 11
 
 local btnRow1 = Instance.new("Frame"); btnRow1.Size = UDim2.new(1, -20, 0, 26); btnRow1.Position = UDim2.new(0, 10, 1, -65); btnRow1.BackgroundTransparency = 1; btnRow1.Parent = detailsPanel
@@ -605,15 +645,16 @@ local function refreshPlayers()
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= lp and p.Name:lower():find(query) then
             n = n + 1
-            local row = makeButton(pList, "  " .. p.Name, UDim2.new(1, 0, 0, 28), Color3.fromRGB(20, 20, 30))
+            local row = makeButton(pList, "  " .. p.Name, UDim2.new(1, 0, 0, 28), Color3.fromRGB(25, 25, 32), Color3.fromRGB(35, 35, 45))
             row.TextXAlignment = Enum.TextXAlignment.Left
+            row.UIStroke.Transparency = 1
             
             local statusLbl = Instance.new("TextLabel")
             statusLbl.Size = UDim2.new(0, 100, 1, 0)
             statusLbl.Position = UDim2.new(1, -110, 0, 0)
             statusLbl.BackgroundTransparency = 1
             statusLbl.Text = p.Team and p.Team.Name or "No Team"
-            statusLbl.TextColor3 = isTeammate(p) and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 60, 60)
+            statusLbl.TextColor3 = isTeammate(p) and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(200, 50, 50)
             statusLbl.Font = Enum.Font.Gotham
             statusLbl.TextSize = 11
             statusLbl.TextXAlignment = Enum.TextXAlignment.Right
@@ -621,8 +662,8 @@ local function refreshPlayers()
             
             row.MouseButton1Click:Connect(function()
                 CFG.selectedPlayer = p
-                for _, r in ipairs(pList:GetChildren()) do if r:IsA("TextButton") then r.BackgroundColor3 = Color3.fromRGB(20, 20, 30) end end
-                row.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
+                for _, r in ipairs(pList:GetChildren()) do if r:IsA("TextButton") then r.BackgroundColor3 = Color3.fromRGB(25, 25, 32) end end
+                row.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
                 detailsText.Text = p.Name .. " (@" .. p.DisplayName .. ")\nID: " .. p.UserId
                 task.spawn(function() local ok, thumb = pcall(function() return Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150) end); if ok then avatarImg.Image = thumb end end)
             end)
@@ -660,7 +701,7 @@ end)
 local function stopSpectating()
     flags.isSpectating = false
     sBtn.Text = "Spectate"
-    sBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    sBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
     local myHum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
     if myHum then camera.CameraSubject = myHum; camera.CameraType = Enum.CameraType.Custom end
 end
@@ -696,7 +737,7 @@ oBtn.MouseButton1Click:Connect(function()
             end
         end)
     else
-        oBtn.Text = "Orbit"; oBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+        oBtn.Text = "Orbit"; oBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
         if flags.orbitConn then flags.orbitConn:Disconnect(); flags.orbitConn = nil end
     end
 end)
@@ -868,9 +909,9 @@ makeToggle(visPage, "Tracers", "tracers")
 -- ============================================
 local wpPage = addTab("Waypoints")
 local wpList = Instance.new("ScrollingFrame")
-wpList.Size = UDim2.new(1, 0, 1, -40); wpList.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+wpList.Size = UDim2.new(1, 0, 1, -40); wpList.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
 wpList.BorderSizePixel = 0; wpList.CanvasSize = UDim2.new(0, 0, 0, 0); wpList.ScrollBarThickness = 2; wpList.Parent = wpPage
-local wplc = Instance.new("UICorner"); wplc.CornerRadius = UDim.new(0, 8); wplc.Parent = wpList
+local wplc = Instance.new("UICorner"); wplc.CornerRadius = UDim.new(0, 4); wplc.Parent = wpList
 local wpLayout = Instance.new("UIListLayout"); wpLayout.Padding = UDim.new(0, 2); wpLayout.Parent = wpList
 local waypoints = {}
 local function addWaypoint()
@@ -879,8 +920,9 @@ local function addWaypoint()
         local wpName = "WP #" .. (#waypoints + 1)
         local wp = {name = wpName, pos = hrp.CFrame}
         table.insert(waypoints, wp)
-        local row = makeButton(wpList, "  " .. wpName .. " (Click to TP)", UDim2.new(1, -4, 0, 26), Color3.fromRGB(20, 20, 30))
+        local row = makeButton(wpList, "  " .. wpName .. " (Click to TP)", UDim2.new(1, -4, 0, 26), Color3.fromRGB(25, 25, 32), Color3.fromRGB(35, 35, 45))
         row.TextXAlignment = Enum.TextXAlignment.Left
+        row.UIStroke.Transparency = 1
         row.MouseButton1Click:Connect(function() if lp.Character then lp.Character.HumanoidRootPart.CFrame = wp.pos end end)
         wpList.CanvasSize = UDim2.new(0, 0, 0, #waypoints * 30)
     end
@@ -893,11 +935,11 @@ saveWpBtn.Position = UDim2.new(0, 0, 1, -36); saveWpBtn.MouseButton1Click:Connec
 -- ============================================
 local serverPage = addTab("Server")
 local jidBox = Instance.new("TextBox")
-jidBox.Size = UDim2.new(1, 0, 0, 32); jidBox.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+jidBox.Size = UDim2.new(1, 0, 0, 32); jidBox.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
 jidBox.PlaceholderText = "Target Job ID..."; jidBox.Text = ""
-jidBox.TextColor3 = Color3.fromRGB(0, 255, 200); jidBox.Font = Enum.Font.Gotham; jidBox.TextSize = 12
+jidBox.TextColor3 = Color3.fromRGB(255, 255, 255); jidBox.Font = Enum.Font.Gotham; jidBox.TextSize = 12
 jidBox.BorderSizePixel = 0; jidBox.Parent = serverPage
-local jic = Instance.new("UICorner"); jic.CornerRadius = UDim.new(0, 6); jic.Parent = jidBox
+local jic = Instance.new("UICorner"); jic.CornerRadius = UDim.new(0, 4); jic.Parent = jidBox
 
 makeButton(serverPage, "Join Server", UDim2.new(1, 0, 0, 32)).MouseButton1Click:Connect(function()
     if jidBox.Text ~= "" then pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, jidBox.Text, lp) end) end
