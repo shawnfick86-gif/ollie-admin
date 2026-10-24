@@ -1,14 +1,12 @@
 -- ============================================
--- OLLIE ADMIN  •  v40 (Pixel Perfect + Features)
+-- OLLIE ADMIN  •  v41 (Stable UI + Features)
 -- ============================================
 
 local Players           = game:GetService("Players")
 local RunService        = game:GetService("RunService")
 local UserInputService  = game:GetService("UserInputService")
 local Lighting          = game:GetService("Lighting")
-local HttpService       = game:GetService("HttpService")
 local TweenService      = game:GetService("TweenService")
-local TeleportService   = game:GetService("TeleportService")
 
 local lp = Players.LocalPlayer
 local pg = lp:WaitForChild("PlayerGui")
@@ -19,24 +17,13 @@ local camera = workspace.CurrentCamera
 -- ============================================
 local CFG = {
     teamCheck = true, aimbot = false, aimPart = "Head", aimFov = 150, aimSmooth = 0.2,
-    silentAim = false, triggerbot = false, triggerDelay = 0.1, triggerRange = 200,
-    rapidFire = false, rapidFireRate = 0.04, hitboxExpand = false, hitboxSize = 5,
-    noRecoil = false, noSpread = false, infAmmo = false,
-    walkSpeed = 16, jumpPower = 50, fly = false, flySpeed = 50, noclip = false, infJump = false,
-    speedLock = true, autoClicker = false, bunnyhop = false,
-    esp = false, fullbright = false, tracers = false,
-    keySpeed = "None", keyJump = "None", keyAimbot = "None", keyTriggerbot = "None",
+    esp = false, rapidFire = false,
+    walkSpeed = 16, jumpPower = 50, fly = false, noclip = false,
 }
 
 local flags = {
-    flyConn = nil, isSpectating = false, oldCamSubject = nil,
-    noclipConn = nil, infJumpConn = nil, savedLighting = {},
-    aiming = false, uiItems = {}, configScroll = nil,
-    bindingKey = nil, orbitConn = nil, orbitAngle = 0,
-    isMouseDown = false, lastFireTime = 0, musicInstance = nil,
-    killOrbitActive = false, originalCFrame = nil, killOrbitConns = {},
-    espFolder = nil, tracerFolder = nil, espObjects = {}, tracerObjects = {},
-    activeTab = "ALL"
+    flyConn = nil, noclipConn = nil, aiming = false,
+    espFolder = nil, isMouseDown = false
 }
 
 -- ============================================
@@ -54,77 +41,17 @@ local function getAimPart(plr)
     return char:FindFirstChild(CFG.aimPart) or char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
 end
 
--- Silent Aim
-if getrawmetatable and hookmetamethod then
-    pcall(function()
-        local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            local method = getnamecallmethod()
-            if CFG.silentAim and (method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList") then
-                local args = {...}
-                local ray = args[1]
-                local closest, dist = nil, 200
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p ~= lp and not isTeammate(p) and p.Character then
-                        local part = getAimPart(p)
-                        local hum = p.Character:FindFirstChildOfClass("Humanoid")
-                        if part and hum and hum.Health > 0 then
-                            local d = (part.Position - ray.Origin).Magnitude
-                            if d < dist then closest, dist = part, d end
-                        end
-                    end
-                end
-                if closest then args[1] = Ray.new(ray.Origin, closest.Position - ray.Origin) end
-                return oldNamecall(self, table.unpack(args))
-            end
-            return oldNamecall(self, ...)
-        end)
-    end)
-end
-
--- Hitbox & Weapon Mods
-local function applyHitbox()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp and p.Character then
-            for _, part in ipairs(p.Character:GetChildren()) do
-                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                    if CFG.hitboxExpand then
-                        part.Size = Vector3.new(CFG.hitboxSize, CFG.hitboxSize, CFG.hitboxSize)
-                        part.Transparency = 0.7
-                        part.CanCollide = false
-                    end
-                end
-            end
-        end
-    end
-end
-
-local function applyWeaponMods()
-    local char = lp.Character
-    local tool = char and char:FindFirstChildOfClass("Tool")
-    if not tool then return end
-    for _, v in ipairs(tool:GetDescendants()) do
-        if v:IsA("NumberValue") then
-            local n = v.Name:lower()
-            if CFG.noRecoil and n:find("recoil") then v.Value = 0 end
-            if CFG.noSpread and n:find("spread") then v.Value = 0 end
-            if CFG.infAmmo and n:find("ammo") then v.Value = 999 end
-        end
-    end
-end
-
 -- Speed Bypass
 RunService:BindToRenderStep("OllieSpeedBypass", Enum.RenderPriority.Camera.Value + 2, function()
-    if CFG.speedLock then
-        local char = lp.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            if hum.WalkSpeed ~= CFG.walkSpeed then hum.WalkSpeed = CFG.walkSpeed end
-            if hum.UseJumpPower and hum.JumpPower ~= CFG.jumpPower then hum.JumpPower = CFG.jumpPower end
-        end
+    local char = lp.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        if hum.WalkSpeed ~= CFG.walkSpeed then hum.WalkSpeed = CFG.walkSpeed end
+        if hum.UseJumpPower and hum.JumpPower ~= CFG.jumpPower then hum.JumpPower = CFG.jumpPower end
     end
 end)
 
--- Aimbot & Triggerbot
+-- Aimbot Logic
 UserInputService.InputBegan:Connect(function(input, gpe) if not gpe and input.UserInputType == Enum.UserInputType.MouseButton2 then flags.aiming = true end end)
 UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton2 then flags.aiming = false end end)
 
@@ -151,31 +78,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-task.spawn(function()
-    while task.wait(0.05) do
-        if CFG.triggerbot then
-            local mouse = UserInputService:GetMouseLocation()
-            local ray = camera:ViewportPointToRay(mouse.X, mouse.Y)
-            local params = RaycastParams.new(); params.FilterType = Enum.RaycastFilterType.Exclude; params.FilterDescendantsInstances = {lp.Character, workspace:FindFirstChild("AdminESP")}
-            local result = workspace:Raycast(ray.Origin, ray.Direction * CFG.triggerRange, params)
-            if result and result.Instance then
-                local hitModel = result.Instance:FindFirstAncestorOfClass("Model")
-                local hitPlayer = hitModel and Players:GetPlayerFromCharacter(hitModel)
-                if hitPlayer and hitPlayer ~= lp and not isTeammate(hitPlayer) then
-                    local vim = game:GetService("VirtualInputManager")
-                    vim:SendMouseButtonEvent(mouse.X, mouse.Y, 0, true, game, 1)
-                    task.wait(0.02)
-                    vim:SendMouseButtonEvent(mouse.X, mouse.Y, 0, false, game, 1)
-                    task.wait(CFG.triggerDelay)
-                end
-            end
-        end
-        applyWeaponMods()
-        applyHitbox()
-    end
-end)
-
--- ESP
+-- ESP Logic
 RunService.RenderStepped:Connect(function()
     if not CFG.esp then
         if flags.espFolder then flags.espFolder:ClearAllChildren() end
@@ -202,8 +105,7 @@ end)
 -- ============================================
 local FONT = Enum.Font.Gotham
 local TEXT_COLOR = Color3.fromRGB(240, 240, 240)
-local SUB_COLOR = Color3.fromRGB(140, 140, 150)
-local BG_COLOR = Color3.fromRGB(35, 20, 45) -- Deep purple
+local BG_COLOR = Color3.fromRGB(35, 20, 45)
 local ROW_COLOR = Color3.fromRGB(45, 25, 55)
 local HOVER_COLOR = Color3.fromRGB(60, 35, 75)
 
@@ -242,6 +144,68 @@ local function makeButton(parent, text, size, bgColor, hoverColor)
         TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = bgColor or BG_COLOR}):Play()
     end)
     return btn
+end
+
+local function makeToggle(parent, label, cfKey)
+    local default = CFG[cfKey]
+    local btn = makeButton(parent, "  " .. label, UDim2.new(1, 0, 0, 32), BG_COLOR)
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    local ind = Instance.new("Frame", btn)
+    ind.Size = UDim2.new(0, 4, 1, -8); ind.Position = UDim2.new(0, 4, 0, 4)
+    ind.BackgroundColor3 = default and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 60, 60)
+    ind.BorderSizePixel = 0
+    local ic = Instance.new("UICorner", ind); ic.CornerRadius = UDim.new(1, 0)
+    btn.MouseButton1Click:Connect(function()
+        CFG[cfKey] = not CFG[cfKey]
+        ind.BackgroundColor3 = CFG[cfKey] and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 60, 60)
+    end)
+end
+
+local function makeSlider(parent, label, min, max, cfKey)
+    local holder = Instance.new("Frame", parent)
+    holder.Size = UDim2.new(1, 0, 0, 40); holder.BackgroundColor3 = BG_COLOR
+    Instance.new("UICorner", holder).CornerRadius = UDim.new(0, 4)
+    
+    local lbl = makeLabel(holder, label, UDim2.new(1, -60, 0, 20)); lbl.Position = UDim2.new(0, 10, 0, 4)
+    
+    local box = Instance.new("TextBox", holder)
+    box.Size = UDim2.new(0, 50, 0, 20); box.Position = UDim2.new(1, -55, 0, 4)
+    box.BackgroundColor3 = Color3.fromRGB(20, 10, 25); box.TextColor3 = Color3.fromRGB(255, 255, 255)
+    box.Text = tostring(CFG[cfKey]); box.Font = Enum.Font.Code; box.TextSize = 12; box.BorderSizePixel = 0
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 3)
+    
+    local bar = Instance.new("Frame", holder)
+    bar.Size = UDim2.new(1, -20, 0, 4); bar.Position = UDim2.new(0, 10, 0, 30)
+    bar.BackgroundColor3 = Color3.fromRGB(50, 30, 60); bar.BorderSizePixel = 0
+    Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
+    
+    local fill = Instance.new("Frame", bar)
+    fill.Size = UDim2.new((CFG[cfKey]-min)/(max-min), 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(180, 0, 255); fill.BorderSizePixel = 0
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+
+    local dragging = false
+    bar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end end)
+    UserInputService.InputChanged:Connect(function(i)
+        if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+            local rel = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+            local val = math.floor((min + (max - min) * rel) * 100) / 100
+            CFG[cfKey] = val
+            fill.Size = UDim2.new(rel, 0, 1, 0)
+            box.Text = tostring(val)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+    
+    box.FocusLost:Connect(function()
+        local num = tonumber(box.Text)
+        if num and num >= min and num <= max then
+            CFG[cfKey] = num
+            fill.Size = UDim2.new((num-min)/(max-min), 0, 1, 0)
+        else
+            box.Text = tostring(CFG[cfKey])
+        end
+    end)
 end
 
 -- ============================================
@@ -342,7 +306,7 @@ local function addTab(name)
 end
 
 -- ============================================
--- TAB: PLAYERS (Exact UI)
+-- TAB: PLAYERS
 -- ============================================
 local playersPage = addTab("Players")
 
@@ -410,7 +374,6 @@ local function refreshPlayers()
                 for _, r in ipairs(pList:GetChildren()) do if r:IsA("TextButton") then r.BackgroundColor3 = ROW_COLOR end end
                 row.BackgroundColor3 = Color3.fromRGB(70, 40, 90)
                 
-                -- Update bottom bar
                 actionTitle.Text = p.DisplayName
                 aID.Text = tostring(p.UserId)
             end)
@@ -439,7 +402,6 @@ aFlag.Position = UDim2.new(0, 110, 0, 12)
 local aGear = makeLabel(actionBar, "⚙", UDim2.new(0, 20, 0, 20), Color3.fromRGB(200, 200, 200), FONT, 12)
 aGear.Position = UDim2.new(0, 140, 0, 14)
 
--- Slots
 local slot1 = makeButton(actionBar, "1\nM9", UDim2.new(0, 40, 0, 36), Color3.fromRGB(50, 30, 60))
 slot1.Position = UDim2.new(0, 180, 0, 7)
 local slot2 = makeButton(actionBar, "2\nTaser", UDim2.new(0, 40, 0, 36), Color3.fromRGB(50, 30, 60))
@@ -460,53 +422,15 @@ aEye.Parent = actionBar
 local aec = Instance.new("UICorner"); aec.CornerRadius = UDim.new(0, 4); aec.Parent = actionBar
 
 -- ============================================
--- TAB: COMBAT (Features)
+-- TAB: COMBAT
 -- ============================================
 local combatPage = addTab("Combat")
-local function makeToggle(parent, label, cfKey)
-    local default = CFG[cfKey]
-    local btn = makeButton(parent, "  " .. label, UDim2.new(1, 0, 0, 32), Color3.fromRGB(35, 20, 45))
-    btn.TextXAlignment = Enum.TextXAlignment.Left
-    local ind = Instance.new("Frame", btn)
-    ind.Size = UDim2.new(0, 4, 1, -8); ind.Position = UDim2.new(0, 4, 0, 4)
-    ind.BackgroundColor3 = default and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 60, 60)
-    ind.BorderSizePixel = 0
-    local ic = Instance.new("UICorner", ind); ic.CornerRadius = UDim.new(1, 0)
-    btn.MouseButton1Click:Connect(function()
-        CFG[cfKey] = not CFG[cfKey]
-        ind.BackgroundColor3 = CFG[cfKey] and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 60, 60)
-    end)
-end
-
-local function makeSlider(parent, label, min, max, cfKey)
-    local holder = Instance.new("Frame", parent)
-    holder.Size = UDim2.new(1, 0, 0, 40); holder.BackgroundColor3 = Color3.fromRGB(35, 20, 45)
-    Instance.new("UICorner", holder).CornerRadius = UDim.new(0, 4)
-    local lbl = makeLabel(holder, label, UDim2.new(1, -60, 0, 20)); lbl.Position = UDim2.new(0, 10, 0, 4)
-    local box = Instance.new("TextBox", holder)
-    box.Size = UDim2.new(0, 50, 0, 20); box.Position = UDim2.new(1, -55, 0, 4)
-    box.BackgroundColor3 = Color3.fromRGB(20, 10, 25); box.TextColor3 = Color3.fromRGB(255, 255, 255)
-    box.Text = tostring(CFG[cfKey]); box.Font = Enum.Font.Code; box.TextSize = 12; box.BorderSizePixel = 0
-    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 3)
-    local bar = Instance.new("Frame", holder)
-    bar.Size = UDim2.new(1, -20, 0, 4); bar.Position = UDim2.new(0, 10, 0, 30)
-    bar.BackgroundColor3 = Color3.fromRGB(50, 30, 60); bar.BorderSizePixel = 0
-    Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
-    local fill = Instance.new("Frame", bar)
-    fill.Size = UDim2.new((CFG[cfKey]-min)/(max-min), 0, 1, 0)
-    fill.BackgroundColor3 = Color3.fromRGB(180, 0, 255); fill.BorderSizePixel = 0
-    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
-    bar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then local dragging = true; UserInputService.InputChanged:Connect(function(m) if dragging and m.UserInputType == Enum.UserInputType.MouseMovement then local rel = math.clamp((m.Position.X - bar.AbsolutePosition.X)/bar.AbsoluteSize.X,0,1); local val = math.floor((min+(max-min)*rel)*100)/100; CFG[cfKey]=val; fill.Size=UDim2.new(rel,0,1,0); box.Text=tostring(val) end end); UserInputService.InputEnded:Connect(function(e) if e.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end) end end)
-end
-
 makeToggle(combatPage, "Team Check", "teamCheck")
 makeToggle(combatPage, "Aimbot (RMB)", "aimbot")
 makeSlider(combatPage, "Aimbot FOV", 20, 500, "aimFov")
 makeSlider(combatPage, "Aimbot Smoothness", 0.05, 1, "aimSmooth")
-makeToggle(combatPage, "Silent Aim", "silentAim")
-makeToggle(combatPage, "Triggerbot", "triggerbot")
+makeToggle(combatPage, "ESP", "esp")
 makeToggle(combatPage, "Rapid Fire", "rapidFire")
-makeToggle(combatPage, "Hitbox Expander", "hitboxExpand")
 
 -- ============================================
 -- TAB: MOVEMENT
@@ -522,8 +446,6 @@ makeToggle(movePage, "Noclip", "noclip")
 -- ============================================
 local visPage = addTab("Visuals")
 makeToggle(visPage, "Fullbright", "fullbright")
-makeToggle(visPage, "ESP", "esp")
-makeToggle(visPage, "Tracers", "tracers")
 
 -- ============================================
 -- INIT
@@ -536,4 +458,4 @@ topBar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.M
 UserInputService.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then local d = i.Position - dragStart; main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) end end)
 UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
 
-print("[Ollie Admin v40] Exact UI + Features loaded.")
+print("[Ollie Admin v41] Stable Build Loaded.")
