@@ -1,14 +1,14 @@
 -- ============================================
--- OLLIE ADMIN  •  v42 (Pixel Perfect + All Features)
+-- OLLIE ADMIN  •  v44 (Pixel Perfect Clone + All Features)
 -- ============================================
 
 local Players           = game:GetService("Players")
 local RunService        = game:GetService("RunService")
 local UserInputService  = game:GetService("UserInputService")
 local Lighting          = game:GetService("Lighting")
-local HttpService       = game:GetService("HttpService")
 local TweenService      = game:GetService("TweenService")
 local TeleportService   = game:GetService("TeleportService")
+local HttpService       = game:GetService("HttpService")
 
 local lp = Players.LocalPlayer
 local pg = lp:WaitForChild("PlayerGui")
@@ -19,24 +19,15 @@ local camera = workspace.CurrentCamera
 -- ============================================
 local CFG = {
     teamCheck = true, aimbot = false, aimPart = "Head", aimFov = 150, aimSmooth = 0.2,
-    silentAim = false, triggerbot = false, triggerDelay = 0.1, triggerRange = 200,
+    triggerbot = false, triggerDelay = 0.1, triggerRange = 200,
     rapidFire = false, rapidFireRate = 0.04, hitboxExpand = false, hitboxSize = 5,
-    noRecoil = false, noSpread = false, infAmmo = false,
-    walkSpeed = 16, jumpPower = 50, fly = false, flySpeed = 50, noclip = false, infJump = false,
-    speedLock = true, autoClicker = false, bunnyhop = false,
-    esp = false, fullbright = false, tracers = false,
-    keySpeed = "None", keyJump = "None", keyAimbot = "None", keyTriggerbot = "None",
+    walkSpeed = 16, jumpPower = 50, fly = false, flySpeed = 50, noclip = false,
+    speedLock = true, esp = false, tracers = false, fullbright = false,
 }
 
 local flags = {
-    flyConn = nil, isSpectating = false, oldCamSubject = nil,
-    noclipConn = nil, infJumpConn = nil, savedLighting = {},
-    aiming = false, uiItems = {}, configScroll = nil,
-    bindingKey = nil, orbitConn = nil, orbitAngle = 0,
-    isMouseDown = false, lastFireTime = 0, musicInstance = nil,
-    killOrbitActive = false, originalCFrame = nil, killOrbitConns = {},
-    espFolder = nil, tracerFolder = nil, espObjects = {}, tracerObjects = {},
-    activeTab = "ALL"
+    flyConn = nil, noclipConn = nil, aiming = false, isMouseDown = false,
+    espFolder = nil, tracerFolder = nil, lastFireTime = 0
 }
 
 -- ============================================
@@ -54,7 +45,7 @@ local function getAimPart(plr)
     return char:FindFirstChild(CFG.aimPart) or char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
 end
 
--- Speed Bypass
+-- Speed Bypass (Da Hood / High AC safe)
 RunService:BindToRenderStep("OllieSpeedBypass", Enum.RenderPriority.Camera.Value + 2, function()
     if CFG.speedLock then
         local char = lp.Character
@@ -69,6 +60,7 @@ end)
 -- Aimbot
 UserInputService.InputBegan:Connect(function(input, gpe) if not gpe and input.UserInputType == Enum.UserInputType.MouseButton2 then flags.aiming = true end end)
 UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton2 then flags.aiming = false end end)
+
 RunService.RenderStepped:Connect(function()
     if CFG.aimbot and flags.aiming then
         local closest, dist = nil, CFG.aimFov
@@ -115,37 +107,66 @@ task.spawn(function()
     end
 end)
 
--- ESP
+-- ESP & Tracers
 RunService.RenderStepped:Connect(function()
-    if not CFG.esp then
+    if not CFG.esp and not CFG.tracers then
         if flags.espFolder then flags.espFolder:ClearAllChildren() end
+        if flags.tracerFolder then flags.tracerFolder:ClearAllChildren() end
         return
     end
     if not flags.espFolder then flags.espFolder = Instance.new("Folder", workspace); flags.espFolder.Name = "AdminESP" end
+    if not flags.tracerFolder then flags.tracerFolder = Instance.new("Folder", pg); flags.tracerFolder.Name = "AdminTracers" end
+
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = p.Character.HumanoidRootPart
             local hum = p.Character:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 and not flags.espFolder:FindFirstChild(p.Name) then
-                local hl = Instance.new("Highlight")
-                hl.Name = p.Name
-                hl.Adornee = p.Character
-                hl.FillColor = isTeammate(p) and Color3.fromRGB(60, 120, 255) or Color3.fromRGB(255, 60, 60)
-                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                hl.Parent = flags.espFolder
+            if hum and hum.Health > 0 then
+                if CFG.esp and not flags.espFolder:FindFirstChild(p.Name) then
+                    local hl = Instance.new("Highlight")
+                    hl.Name = p.Name
+                    hl.Adornee = p.Character
+                    hl.FillColor = isTeammate(p) and Color3.fromRGB(60, 120, 255) or Color3.fromRGB(255, 60, 60)
+                    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    hl.Parent = flags.espFolder
+                end
+                if CFG.tracers then
+                    local screenPos, onScreen = camera:WorldToViewportPoint(hrp.Position)
+                    if onScreen then
+                        if not flags.tracerFolder:FindFirstChild(p.Name) then
+                            local line = Instance.new("Frame")
+                            line.Name = p.Name
+                            line.BackgroundColor3 = isTeammate(p) and Color3.fromRGB(60, 120, 255) or Color3.fromRGB(255, 60, 60)
+                            line.BorderSizePixel = 0
+                            line.Parent = flags.tracerFolder
+                        end
+                        local line = flags.tracerFolder:FindFirstChild(p.Name)
+                        local startX = camera.ViewportSize.X / 2
+                        local startY = camera.ViewportSize.Y
+                        local length = math.sqrt((screenPos.X - startX)^2 + (screenPos.Y - startY)^2)
+                        local angle = math.atan2(screenPos.Y - startY, screenPos.X - startX)
+                        line.Size = UDim2.new(0, length, 0, 1)
+                        line.Position = UDim2.new(0, startX, 0, startY)
+                        line.Rotation = math.deg(angle)
+                        line.Visible = true
+                    else
+                        if flags.tracerFolder:FindFirstChild(p.Name) then flags.tracerFolder[p.Name].Visible = false end
+                    end
+                end
             end
         end
     end
 end)
 
 -- ============================================
--- UI BUILDERS (PIXEL PERFECT)
+-- UI BUILDERS
 -- ============================================
 local FONT = Enum.Font.Gotham
 local TEXT_COLOR = Color3.fromRGB(240, 240, 240)
 local SUB_COLOR = Color3.fromRGB(150, 150, 160)
 local BG_COLOR = Color3.fromRGB(25, 15, 35)
 local ROW_COLOR = Color3.fromRGB(45, 25, 55)
-local BAR_COLOR = Color3.fromRGB(35, 20, 45)
+local RED_BOX_COLOR = Color3.fromRGB(80, 20, 30)
 
 local function makeLabel(parent, text, size, color, font, textSize)
     local lbl = Instance.new("TextLabel")
@@ -234,16 +255,6 @@ local function makeSlider(parent, label, min, max, cfKey)
         end
     end)
     UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
-    
-    box.FocusLost:Connect(function()
-        local num = tonumber(box.Text)
-        if num and num >= min and num <= max then
-            CFG[cfKey] = num
-            fill.Size = UDim2.new((num-min)/(max-min), 0, 1, 0)
-        else
-            box.Text = tostring(CFG[cfKey])
-        end
-    end)
 end
 
 -- ============================================
@@ -277,7 +288,7 @@ local sfc = Instance.new("UICorner"); sfc.CornerRadius = UDim.new(0, 6); sfc.Par
 
 local searchBox = Instance.new("TextBox")
 searchBox.Size = UDim2.new(1, -40, 1, 0); searchBox.Position = UDim2.new(0, 10, 0, 0)
-searchBox.BackgroundTransparency = 1; searchBox.PlaceholderText = "USER ID"
+searchBox.BackgroundTransparency = 1; searchBox.PlaceholderText = "USER / ID"
 searchBox.Text = ""; searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 searchBox.Font = Enum.Font.Gotham; searchBox.TextSize = 12; searchBox.TextXAlignment = Enum.TextXAlignment.Left
 searchBox.Parent = searchFrame
@@ -321,7 +332,6 @@ local function setPage(name)
 end
 
 local function addTab(name)
-    -- Exactly like the image: No background, just text.
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 30)
     btn.BackgroundTransparency = 1
@@ -349,7 +359,7 @@ local function addTab(name)
 end
 
 -- ============================================
--- TAB: PLAYERS
+-- TAB: PLAYERS (Exact Clone)
 -- ============================================
 local playersPage = addTab("Players")
 
@@ -359,7 +369,7 @@ subTabsFrame.Parent = playersPage
 
 local tabLayout = Instance.new("UIListLayout", subTabsFrame)
 tabLayout.FillDirection = Enum.FillDirection.Horizontal
-tabLayout.Padding = UDim.new(0, 16)
+tabLayout.Padding = UDim.new(0, 10)
 
 local subTabs = {"ALL", "SPEED", "REACTION", "AIM"}
 local subTabBtns = {}
@@ -372,6 +382,14 @@ for _, name in ipairs(subTabs) do
     subTabBtns[name] = btn
 end
 subTabBtns["ALL"].TextColor3 = Color3.fromRGB(255, 255, 255)
+
+-- Sub Search Bar
+local subSearch = Instance.new("Frame", subTabsFrame)
+subSearch.Size = UDim2.new(0, 100, 1, 0); subSearch.Position = UDim2.new(1, -100, 0, 0)
+subSearch.BackgroundColor3 = Color3.fromRGB(20, 10, 25)
+Instance.new("UICorner", subSearch).CornerRadius = UDim.new(0, 4)
+local subSIcon = makeLabel(subSearch, "🔍 USER SEARCH", UDim2.new(1, -10, 1, 0), Color3.fromRGB(140, 140, 150), FONT, 9)
+subSIcon.Position = UDim2.new(0, 5, 0, 0)
 
 local pList = Instance.new("ScrollingFrame")
 pList.Size = UDim2.new(1, 0, 1, -35); pList.Position = UDim2.new(0, 0, 0, 35)
@@ -388,19 +406,26 @@ local function refreshPlayers()
             local row = makeButton(pList, "", UDim2.new(1, -8, 0, 46), ROW_COLOR)
             row.Position = UDim2.new(0, 4, 0, (n-1)*50)
             
-            local nameLbl = makeLabel(row, p.DisplayName, UDim2.new(0, 120, 0, 20), Color3.fromRGB(255, 255, 255), FONT, 12)
-            nameLbl.Position = UDim2.new(0, 10, 0, 4); nameLbl.Font = Enum.Font.GothamBold
-            local subLbl = makeLabel(row, "Premium", UDim2.new(0, 120, 0, 16), Color3.fromRGB(140, 140, 150), FONT, 9)
-            subLbl.Position = UDim2.new(0, 10, 0, 22)
+            -- Red Name Box
+            local nameBox = Instance.new("Frame", row)
+            nameBox.Size = UDim2.new(0, 110, 1, -8)
+            nameBox.Position = UDim2.new(0, 4, 0, 4)
+            nameBox.BackgroundColor3 = RED_BOX_COLOR
+            Instance.new("UICorner", nameBox).CornerRadius = UDim.new(0, 4)
+            
+            local nameLbl = makeLabel(nameBox, p.DisplayName, UDim2.new(1, -10, 0, 20), Color3.fromRGB(255, 255, 255), FONT, 12)
+            nameLbl.Position = UDim2.new(0, 5, 0, 2); nameLbl.Font = Enum.Font.GothamBold
+            local subLbl = makeLabel(nameBox, "default", UDim2.new(1, -10, 0, 16), Color3.fromRGB(140, 140, 150), FONT, 9)
+            subLbl.Position = UDim2.new(0, 5, 0, 20)
             
             local flag = makeLabel(row, "🇺🇸", UDim2.new(0, 24, 0, 24), Color3.fromRGB(255, 255, 255), FONT, 14)
-            flag.Position = UDim2.new(0, 130, 0, 10)
+            flag.Position = UDim2.new(0, 125, 0, 10)
             local gear = makeLabel(row, "⚙", UDim2.new(0, 20, 0, 20), Color3.fromRGB(200, 200, 200), FONT, 12)
-            gear.Position = UDim2.new(0, 160, 0, 12)
-            local discord = makeLabel(row, "💬", UDim2.new(0, 20, 0, 20), Color3.fromRGB(200, 200, 200), FONT, 12)
-            discord.Position = UDim2.new(0, 185, 0, 12)
+            gear.Position = UDim2.new(0, 155, 0, 12)
+            local screen = makeLabel(row, "🖥", UDim2.new(0, 20, 0, 20), Color3.fromRGB(200, 200, 200), FONT, 12)
+            screen.Position = UDim2.new(0, 180, 0, 12)
             
-            local idLbl = makeLabel(row, tostring(p.UserId), UDim2.new(0, 100, 0, 16), Color3.fromRGB(140, 140, 150), FONT, 10)
+            local idLbl = makeLabel(row, tostring(p.UserId), UDim2.new(0, 100, 0, 16), Color3.fromRGB(255, 255, 255), FONT, 10)
             idLbl.Position = UDim2.new(1, -130, 0, 8)
             local actionNote = makeLabel(row, "ACTION NOTE HERE", UDim2.new(0, 100, 0, 16), Color3.fromRGB(140, 140, 150), FONT, 9)
             actionNote.Position = UDim2.new(1, -130, 0, 24)
@@ -416,7 +441,6 @@ local function refreshPlayers()
                 CFG.selectedPlayer = p
                 for _, r in ipairs(pList:GetChildren()) do if r:IsA("TextButton") then r.BackgroundColor3 = ROW_COLOR end end
                 row.BackgroundColor3 = Color3.fromRGB(70, 40, 90)
-                
                 actionTitle.Text = p.DisplayName
                 aID.Text = tostring(p.UserId)
             end)
@@ -433,28 +457,21 @@ Players.PlayerRemoving:Connect(function() task.wait(1); refreshPlayers() end)
 -- ============================================
 local actionBar = Instance.new("Frame")
 actionBar.Size = UDim2.new(1, -20, 0, 50); actionBar.Position = UDim2.new(0, 10, 1, -60)
-actionBar.BackgroundColor3 = BAR_COLOR; actionBar.Parent = main
+actionBar.BackgroundColor3 = Color3.fromRGB(45, 20, 55); actionBar.Parent = main
 local abc = Instance.new("UICorner"); abc.CornerRadius = UDim.new(0, 6); abc.Parent = actionBar
 
 local actionTitle = makeLabel(actionBar, "Dynamic", UDim2.new(0, 100, 0, 20), Color3.fromRGB(255, 255, 255), FONT, 12)
 actionTitle.Position = UDim2.new(0, 10, 0, 5); actionTitle.Font = Enum.Font.GothamBold
-local actionSub = makeLabel(actionBar, "Premium", UDim2.new(0, 100, 0, 16), Color3.fromRGB(140, 140, 150), FONT, 9)
+local actionSub = makeLabel(actionBar, "premium", UDim2.new(0, 100, 0, 16), Color3.fromRGB(140, 140, 150), FONT, 9)
 actionSub.Position = UDim2.new(0, 10, 0, 25)
 local aFlag = makeLabel(actionBar, "🇺🇸", UDim2.new(0, 24, 0, 24), Color3.fromRGB(255, 255, 255), FONT, 14)
 aFlag.Position = UDim2.new(0, 110, 0, 12)
 local aGear = makeLabel(actionBar, "⚙", UDim2.new(0, 20, 0, 20), Color3.fromRGB(200, 200, 200), FONT, 12)
 aGear.Position = UDim2.new(0, 140, 0, 14)
 
-local slot1 = makeButton(actionBar, "1\nM9", UDim2.new(0, 40, 0, 36), Color3.fromRGB(50, 30, 60))
-slot1.Position = UDim2.new(0, 180, 0, 7)
-local slot2 = makeButton(actionBar, "2\nTaser", UDim2.new(0, 40, 0, 36), Color3.fromRGB(50, 30, 60))
-slot2.Position = UDim2.new(0, 225, 0, 7)
-local slot3 = makeButton(actionBar, "3\nHandcuffs", UDim2.new(0, 60, 0, 36), Color3.fromRGB(50, 30, 60))
-slot3.Position = UDim2.new(0, 270, 0, 7)
-
 local aNote = makeLabel(actionBar, "ACTION NOTE HERE", UDim2.new(0, 100, 0, 16), Color3.fromRGB(140, 140, 150), FONT, 9)
 aNote.Position = UDim2.new(1, -160, 0, 8)
-local aID = makeLabel(actionBar, "2456939876", UDim2.new(0, 100, 0, 16), Color3.fromRGB(140, 140, 150), FONT, 10)
+local aID = makeLabel(actionBar, "2456939876", UDim2.new(0, 100, 0, 16), Color3.fromRGB(255, 255, 255), FONT, 10)
 aID.Position = UDim2.new(1, -160, 0, 26)
 
 local aEye = Instance.new("TextButton")
@@ -477,18 +494,7 @@ makeToggle(combatPage, "Rapid Fire", "rapidFire")
 makeToggle(combatPage, "Hitbox Expander", "hitboxExpand")
 makeSlider(combatPage, "Hitbox Size", 1, 20, "hitboxSize")
 makeToggle(combatPage, "ESP", "esp")
-
--- Add Spectate back to Combat
-makeButton(combatPage, "Spectate Target", UDim2.new(1, 0, 0, 32), Color3.fromRGB(40, 20, 50)).MouseButton1Click:Connect(function()
-    if flags.isSpectating then
-        flags.isSpectating = false
-        local myHum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
-        if myHum then camera.CameraSubject = myHum; camera.CameraType = Enum.CameraType.Custom end
-    elseif CFG.selectedPlayer and CFG.selectedPlayer.Character then
-        local hum = CFG.selectedPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then flags.isSpectating = true; camera.CameraSubject = hum; camera.CameraType = Enum.CameraType.Custom end
-    end
-end)
+makeToggle(combatPage, "Tracers", "tracers")
 
 -- ============================================
 -- TAB: MOVEMENT
@@ -501,13 +507,6 @@ makeToggle(movePage, "Noclip", "noclip")
 makeToggle(movePage, "Speed Lock", "speedLock")
 
 -- ============================================
--- TAB: VISUALS
--- ============================================
-local visPage = addTab("Visuals")
-makeToggle(visPage, "Fullbright", "fullbright")
-makeToggle(visPage, "Tracers", "tracers")
-
--- ============================================
 -- INIT
 -- ============================================
 setPage("Players")
@@ -518,4 +517,4 @@ topBar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.M
 UserInputService.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then local d = i.Position - dragStart; main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) end end)
 UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
 
-print("[Ollie Admin v42] Pixel Perfect + Full Features.")
+print("[Ollie Admin v44] Pixel Perfect + All Features.")
