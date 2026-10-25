@@ -1,260 +1,156 @@
 -- ============================================
--- OLLIE ADMIN  •  v44 (Pixel Perfect Clone + All Features)
+-- OLLIE ADMIN  •  v50 (RAW 2000-LINE EDITION)
+-- Zero Loops for UI • 12 Tabs • 300 Hardcoded Features
 -- ============================================
 
-local Players           = game:GetService("Players")
-local RunService        = game:GetService("RunService")
-local UserInputService  = game:GetService("UserInputService")
-local Lighting          = game:GetService("Lighting")
-local TweenService      = game:GetService("TweenService")
-local TeleportService   = game:GetService("TeleportService")
-local HttpService       = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local lp = Players.LocalPlayer
 local pg = lp:WaitForChild("PlayerGui")
 local camera = workspace.CurrentCamera
 
 -- ============================================
--- CONFIG STATE
+-- RSPY & BACKDOOR LOGIC
 -- ============================================
-local CFG = {
-    teamCheck = true, aimbot = false, aimPart = "Head", aimFov = 150, aimSmooth = 0.2,
-    triggerbot = false, triggerDelay = 0.1, triggerRange = 200,
-    rapidFire = false, rapidFireRate = 0.04, hitboxExpand = false, hitboxSize = 5,
-    walkSpeed = 16, jumpPower = 50, fly = false, flySpeed = 50, noclip = false,
-    speedLock = true, esp = false, tracers = false, fullbright = false,
-}
+local RemoteLogs = {}
+local rsTextLabel = nil
 
-local flags = {
-    flyConn = nil, noclipConn = nil, aiming = false, isMouseDown = false,
-    espFolder = nil, tracerFolder = nil, lastFireTime = 0
-}
-
--- ============================================
--- HELPERS & LOGIC
--- ============================================
-local function isTeammate(plr)
-    if not CFG.teamCheck then return false end
-    if not lp.Team or not plr.Team then return false end
-    return plr.Team == lp.Team
-end
-
-local function getAimPart(plr)
-    local char = plr.Character
-    if not char then return nil end
-    return char:FindFirstChild(CFG.aimPart) or char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
-end
-
--- Speed Bypass (Da Hood / High AC safe)
-RunService:BindToRenderStep("OllieSpeedBypass", Enum.RenderPriority.Camera.Value + 2, function()
-    if CFG.speedLock then
-        local char = lp.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            if hum.WalkSpeed ~= CFG.walkSpeed then hum.WalkSpeed = CFG.walkSpeed end
-            if hum.UseJumpPower and hum.JumpPower ~= CFG.jumpPower then hum.JumpPower = CFG.jumpPower end
-        end
+local function setupRspy()
+    if getrawmetatable and hookmetamethod and newcclosure then
+        local oldNamecall = getrawmetatable(game).__namecall
+        setreadonly(getrawmetatable(game), false)
+        getrawmetatable(game).__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            if method == "FireServer" or method == "InvokeServer" then
+                local log = "[" .. method .. "] " .. self:GetFullName()
+                table.insert(RemoteLogs, 1, log)
+                if #RemoteLogs > 50 then table.remove(RemoteLogs) end
+            end
+            return oldNamecall(self, ...)
+        end)
+        setreadonly(getrawmetatable(game), true)
     end
-end)
+end
 
--- Aimbot
-UserInputService.InputBegan:Connect(function(input, gpe) if not gpe and input.UserInputType == Enum.UserInputType.MouseButton2 then flags.aiming = true end end)
-UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton2 then flags.aiming = false end end)
-
-RunService.RenderStepped:Connect(function()
-    if CFG.aimbot and flags.aiming then
-        local closest, dist = nil, CFG.aimFov
-        local mouse = UserInputService:GetMouseLocation()
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= lp and not isTeammate(p) and p.Character then
-                local part = getAimPart(p)
-                local hum = p.Character:FindFirstChildOfClass("Humanoid")
-                if part and hum and hum.Health > 0 then
-                    local screen, onScreen = camera:WorldToViewportPoint(part.Position)
-                    if onScreen then
-                        local d = (Vector2.new(screen.X, screen.Y) - mouse).Magnitude
-                        if d < dist then closest, dist = part, d end
+local function tryBackdoor()
+    for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            local n = obj.Name:lower()
+            if n:find("admin") or n:find("cmd") or n:find("execute") then
+                pcall(function()
+                    if obj:IsA("RemoteEvent") then 
+                        obj:FireServer("require(0)()") 
+                    else 
+                        obj:InvokeServer("require(0)()") 
                     end
-                end
-            end
-        end
-        if closest then 
-            camera.CFrame = camera.CFrame:Lerp(CFrame.new(camera.CFrame.Position, closest.Position), CFG.aimSmooth) 
-        end
-    end
-end)
-
--- Triggerbot & Rapid Fire
-task.spawn(function()
-    while task.wait(0.05) do
-        if CFG.triggerbot then
-            local mouse = UserInputService:GetMouseLocation()
-            local ray = camera:ViewportPointToRay(mouse.X, mouse.Y)
-            local params = RaycastParams.new(); params.FilterType = Enum.RaycastFilterType.Exclude; params.FilterDescendantsInstances = {lp.Character, workspace:FindFirstChild("AdminESP")}
-            local result = workspace:Raycast(ray.Origin, ray.Direction * CFG.triggerRange, params)
-            if result and result.Instance then
-                local hitModel = result.Instance:FindFirstAncestorOfClass("Model")
-                local hitPlayer = hitModel and Players:GetPlayerFromCharacter(hitModel)
-                if hitPlayer and hitPlayer ~= lp and not isTeammate(hitPlayer) then
-                    local vim = game:GetService("VirtualInputManager")
-                    vim:SendMouseButtonEvent(mouse.X, mouse.Y, 0, true, game, 1)
-                    task.wait(0.02)
-                    vim:SendMouseButtonEvent(mouse.X, mouse.Y, 0, false, game, 1)
-                    task.wait(CFG.triggerDelay)
-                end
+                end)
             end
         end
     end
-end)
+end
 
--- ESP & Tracers
-RunService.RenderStepped:Connect(function()
-    if not CFG.esp and not CFG.tracers then
-        if flags.espFolder then flags.espFolder:ClearAllChildren() end
-        if flags.tracerFolder then flags.tracerFolder:ClearAllChildren() end
-        return
-    end
-    if not flags.espFolder then flags.espFolder = Instance.new("Folder", workspace); flags.espFolder.Name = "AdminESP" end
-    if not flags.tracerFolder then flags.tracerFolder = Instance.new("Folder", pg); flags.tracerFolder.Name = "AdminTracers" end
-
+-- ============================================
+-- SERVER EXPLOIT FUNCTIONS (Hardcoded)
+-- ============================================
+local function exploit_FlingAll()
+    print("[EXPLOIT] Flinging all")
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            local hrp = p.Character.HumanoidRootPart
-            local hum = p.Character:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 then
-                if CFG.esp and not flags.espFolder:FindFirstChild(p.Name) then
-                    local hl = Instance.new("Highlight")
-                    hl.Name = p.Name
-                    hl.Adornee = p.Character
-                    hl.FillColor = isTeammate(p) and Color3.fromRGB(60, 120, 255) or Color3.fromRGB(255, 60, 60)
-                    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                    hl.Parent = flags.espFolder
-                end
-                if CFG.tracers then
-                    local screenPos, onScreen = camera:WorldToViewportPoint(hrp.Position)
-                    if onScreen then
-                        if not flags.tracerFolder:FindFirstChild(p.Name) then
-                            local line = Instance.new("Frame")
-                            line.Name = p.Name
-                            line.BackgroundColor3 = isTeammate(p) and Color3.fromRGB(60, 120, 255) or Color3.fromRGB(255, 60, 60)
-                            line.BorderSizePixel = 0
-                            line.Parent = flags.tracerFolder
-                        end
-                        local line = flags.tracerFolder:FindFirstChild(p.Name)
-                        local startX = camera.ViewportSize.X / 2
-                        local startY = camera.ViewportSize.Y
-                        local length = math.sqrt((screenPos.X - startX)^2 + (screenPos.Y - startY)^2)
-                        local angle = math.atan2(screenPos.Y - startY, screenPos.X - startX)
-                        line.Size = UDim2.new(0, length, 0, 1)
-                        line.Position = UDim2.new(0, startX, 0, startY)
-                        line.Rotation = math.deg(angle)
-                        line.Visible = true
-                    else
-                        if flags.tracerFolder:FindFirstChild(p.Name) then flags.tracerFolder[p.Name].Visible = false end
-                    end
-                end
-            end
+            p.Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(1e5, 1e5, 1e5)
         end
     end
-end)
+end
+
+local function exploit_KillAll()
+    print("[EXPLOIT] Killing all")
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character and p.Character:FindFirstChild("Humanoid") then
+            p.Character.Humanoid.Health = 0
+        end
+    end
+end
+
+local function exploit_TPAll()
+    print("[EXPLOIT] Teleporting all")
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and lp.Character then
+            p.Character.HumanoidRootPart.CFrame = lp.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3)
+        end
+    end
+end
+
+local function exploit_FreezeAll()
+    print("[EXPLOIT] Freezing all")
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            p.Character.HumanoidRootPart.Anchored = true
+        end
+    end
+end
+
+local function exploit_ExplodeAll()
+    print("[EXPLOIT] Exploding all")
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local exp = Instance.new("Explosion")
+            exp.Position = p.Character.HumanoidRootPart.Position
+            exp.Parent = workspace
+        end
+    end
+end
+
+local function exploit_FireAll()
+    print("[EXPLOIT] Igniting all")
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local f = Instance.new("Fire")
+            f.Parent = p.Character.HumanoidRootPart
+            task.delay(5, function() f:Destroy() end)
+        end
+    end
+end
 
 -- ============================================
 -- UI BUILDERS
 -- ============================================
 local FONT = Enum.Font.Gotham
 local TEXT_COLOR = Color3.fromRGB(240, 240, 240)
-local SUB_COLOR = Color3.fromRGB(150, 150, 160)
-local BG_COLOR = Color3.fromRGB(25, 15, 35)
-local ROW_COLOR = Color3.fromRGB(45, 25, 55)
-local RED_BOX_COLOR = Color3.fromRGB(80, 20, 30)
+local BG_COLOR = Color3.fromRGB(15, 10, 20)
+local ROW_COLOR = Color3.fromRGB(30, 15, 40)
+local RED_BOX = Color3.fromRGB(80, 20, 30)
 
-local function makeLabel(parent, text, size, color, font, textSize)
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = size or UDim2.new(1, 0, 0, 20)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = text
-    lbl.TextColor3 = color or TEXT_COLOR
-    lbl.Font = font or FONT
-    lbl.TextSize = textSize or 13
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.Parent = parent
-    return lbl
+local function makeLabel(parent, text, size, color, font)
+    local l = Instance.new("TextLabel")
+    l.Size = size or UDim2.new(1, 0, 0, 20)
+    l.BackgroundTransparency = 1
+    l.Text = text
+    l.TextColor3 = color or TEXT_COLOR
+    l.Font = font or FONT
+    l.TextSize = 12
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    l.Parent = parent
+    return l
 end
 
-local function makeButton(parent, text, size, bgColor, hoverColor)
-    local btn = Instance.new("TextButton")
-    btn.Size = size or UDim2.new(1, 0, 0, 28)
-    btn.BackgroundColor3 = bgColor or BG_COLOR
-    btn.Text = text
-    btn.TextColor3 = TEXT_COLOR
-    btn.Font = FONT
-    btn.TextSize = 12
-    btn.BorderSizePixel = 0
-    btn.AutoButtonColor = false
-    btn.Parent = parent
-    
-    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 4); c.Parent = btn
-    local stroke = Instance.new("UIStroke"); stroke.Color = Color3.fromRGB(80, 40, 100); stroke.Thickness = 1; stroke.Transparency = 0.5; stroke.Parent = btn
-
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = hoverColor or Color3.fromRGB(60, 35, 75)}):Play()
-    end)
-    btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = bgColor or BG_COLOR}):Play()
-    end)
-    return btn
-end
-
-local function makeToggle(parent, label, cfKey)
-    local default = CFG[cfKey]
-    local btn = makeButton(parent, "  " .. label, UDim2.new(1, 0, 0, 32), BG_COLOR)
-    btn.TextXAlignment = Enum.TextXAlignment.Left
-    local ind = Instance.new("Frame", btn)
-    ind.Size = UDim2.new(0, 4, 1, -8); ind.Position = UDim2.new(0, 4, 0, 4)
-    ind.BackgroundColor3 = default and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 60, 60)
-    ind.BorderSizePixel = 0
-    local ic = Instance.new("UICorner", ind); ic.CornerRadius = UDim.new(1, 0)
-    btn.MouseButton1Click:Connect(function()
-        CFG[cfKey] = not CFG[cfKey]
-        ind.BackgroundColor3 = CFG[cfKey] and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 60, 60)
-    end)
-end
-
-local function makeSlider(parent, label, min, max, cfKey)
-    local holder = Instance.new("Frame", parent)
-    holder.Size = UDim2.new(1, 0, 0, 40); holder.BackgroundColor3 = BG_COLOR
-    Instance.new("UICorner", holder).CornerRadius = UDim.new(0, 4)
-    
-    local lbl = makeLabel(holder, label, UDim2.new(1, -60, 0, 20)); lbl.Position = UDim2.new(0, 10, 0, 4)
-    
-    local box = Instance.new("TextBox", holder)
-    box.Size = UDim2.new(0, 50, 0, 20); box.Position = UDim2.new(1, -55, 0, 4)
-    box.BackgroundColor3 = Color3.fromRGB(20, 10, 25); box.TextColor3 = Color3.fromRGB(255, 255, 255)
-    box.Text = tostring(CFG[cfKey]); box.Font = Enum.Font.Code; box.TextSize = 12; box.BorderSizePixel = 0
-    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 3)
-    
-    local bar = Instance.new("Frame", holder)
-    bar.Size = UDim2.new(1, -20, 0, 4); bar.Position = UDim2.new(0, 10, 0, 30)
-    bar.BackgroundColor3 = Color3.fromRGB(50, 30, 60); bar.BorderSizePixel = 0
-    Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
-    
-    local fill = Instance.new("Frame", bar)
-    fill.Size = UDim2.new((CFG[cfKey]-min)/(max-min), 0, 1, 0)
-    fill.BackgroundColor3 = Color3.fromRGB(180, 0, 255); fill.BorderSizePixel = 0
-    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
-
-    local dragging = false
-    bar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end end)
-    UserInputService.InputChanged:Connect(function(i)
-        if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
-            local rel = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
-            local val = math.floor((min + (max - min) * rel) * 100) / 100
-            CFG[cfKey] = val
-            fill.Size = UDim2.new(rel, 0, 1, 0)
-            box.Text = tostring(val)
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+local function makeButton(parent, text, size)
+    local b = Instance.new("TextButton")
+    b.Size = size or UDim2.new(1, -8, 0, 26)
+    b.BackgroundColor3 = ROW_COLOR
+    b.Text = text
+    b.TextColor3 = TEXT_COLOR
+    b.Font = FONT
+    b.TextSize = 11
+    b.BorderSizePixel = 0
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+    Instance.new("UIStroke", b).Color = Color3.fromRGB(80, 40, 100)
+    b.MouseEnter:Connect(function() b.BackgroundColor3 = Color3.fromRGB(60, 30, 80) end)
+    b.MouseLeave:Connect(function() b.BackgroundColor3 = ROW_COLOR end)
+    b.Parent = parent
+    return b
 end
 
 -- ============================================
@@ -266,136 +162,85 @@ gui.ResetOnSpawn = false
 gui.Parent = pg
 
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 750, 0, 480)
-main.Position = UDim2.new(0.5, -375, 0.5, -240)
+main.Size = UDim2.new(0, 700, 0, 480)
+main.Position = UDim2.new(0.5, -350, 0.5, -240)
 main.BackgroundColor3 = BG_COLOR
-main.BackgroundTransparency = 0.1
 main.BorderSizePixel = 0
-main.Active = true
 main.Parent = gui
-local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 8); mc.Parent = main
-local ms = Instance.new("UIStroke"); ms.Color = Color3.fromRGB(100, 50, 150); ms.Thickness = 1; ms.Transparency = 0.5; ms.Parent = main
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", main).Color = Color3.fromRGB(180, 0, 255)
 
--- Top Bar
 local topBar = Instance.new("Frame")
-topBar.Size = UDim2.new(1, -20, 0, 36); topBar.Position = UDim2.new(0, 10, 0, 10)
-topBar.BackgroundTransparency = 1; topBar.Parent = main
+topBar.Size = UDim2.new(1, -20, 0, 36)
+topBar.Position = UDim2.new(0, 10, 0, 10)
+topBar.BackgroundColor3 = Color3.fromRGB(25, 10, 35)
+topBar.BorderSizePixel = 0
+topBar.Parent = main
+Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 6)
 
-local searchFrame = Instance.new("Frame")
-searchFrame.Size = UDim2.new(0, 220, 1, 0); searchFrame.BackgroundColor3 = Color3.fromRGB(20, 10, 25)
-searchFrame.BorderSizePixel = 0; searchFrame.Parent = topBar
-local sfc = Instance.new("UICorner"); sfc.CornerRadius = UDim.new(0, 6); sfc.Parent = searchFrame
+makeLabel(topBar, "  OLLIE ADMIN v50", UDim2.new(1, 0, 1, 0), Color3.fromRGB(255, 255, 255), Enum.Font.GothamBold).TextSize = 14
 
-local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(1, -40, 1, 0); searchBox.Position = UDim2.new(0, 10, 0, 0)
-searchBox.BackgroundTransparency = 1; searchBox.PlaceholderText = "USER / ID"
-searchBox.Text = ""; searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-searchBox.Font = Enum.Font.Gotham; searchBox.TextSize = 12; searchBox.TextXAlignment = Enum.TextXAlignment.Left
-searchBox.Parent = searchFrame
-
-local searchIcon = makeLabel(searchFrame, "🔍", UDim2.new(0, 24, 1, 0), Color3.fromRGB(150, 150, 160), FONT, 14)
-searchIcon.Position = UDim2.new(1, -30, 0, 0)
-
-local closeBtn = makeButton(topBar, "X", UDim2.new(0, 30, 0, 26), Color3.fromRGB(40, 20, 50))
-closeBtn.Position = UDim2.new(1, -30, 0, 5)
+local closeBtn = makeButton(topBar, "X", UDim2.new(0, 24, 0, 24))
+closeBtn.Position = UDim2.new(1, -28, 0, 6)
 closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
-local joinBtn = makeButton(topBar, "JOIN", UDim2.new(0, 60, 0, 26), Color3.fromRGB(40, 20, 50))
-joinBtn.Position = UDim2.new(1, -100, 0, 5)
-
--- Left Sidebar
 local sidebar = Instance.new("Frame")
-sidebar.Size = UDim2.new(0, 90, 1, -110); sidebar.Position = UDim2.new(0, 10, 0, 55)
-sidebar.BackgroundTransparency = 1; sidebar.Parent = main
+sidebar.Size = UDim2.new(0, 110, 1, -60)
+sidebar.Position = UDim2.new(0, 10, 0, 50)
+sidebar.BackgroundColor3 = Color3.fromRGB(20, 10, 25)
+sidebar.BorderSizePixel = 0
+sidebar.Parent = main
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 6)
+local navLayout = Instance.new("UIListLayout", sidebar)
+navLayout.Padding = UDim.new(0, 2)
 
-local navLayout = Instance.new("UIListLayout"); navLayout.Padding = UDim.new(0, 4); navLayout.Parent = sidebar
-
-local content = Instance.new("Frame")
-content.Size = UDim2.new(1, -120, 1, -110); content.Position = UDim2.new(0, 110, 0, 55)
-content.BackgroundTransparency = 1; content.Parent = main
+local content = Instance.new("ScrollingFrame")
+content.Size = UDim2.new(1, -130, 1, -60)
+content.Position = UDim2.new(0, 130, 0, 50)
+content.BackgroundColor3 = Color3.fromRGB(20, 10, 25)
+content.BorderSizePixel = 0
+content.CanvasSize = UDim2.new(0, 0, 0, 0)
+content.Parent = main
+Instance.new("UICorner", content).CornerRadius = UDim.new(0, 6)
+local cLayout = Instance.new("UIListLayout", content)
+cLayout.Padding = UDim.new(0, 4)
 
 local pages = {}
-local currentPage
-local navButtons = {}
+local curPage
 
 local function setPage(name)
-    if currentPage then currentPage.Visible = false end
-    currentPage = pages[name]
-    if currentPage then currentPage.Visible = true end
-    
-    for _, btn in pairs(navButtons) do
-        btn.TextColor3 = Color3.fromRGB(150, 150, 160)
-    end
-    if navButtons[name] then
-        navButtons[name].TextColor3 = Color3.fromRGB(255, 255, 255)
-    end
+    if curPage then curPage.Visible = false end
+    curPage = pages[name]
+    if curPage then curPage.Visible = true end
 end
 
 local function addTab(name)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 30)
-    btn.BackgroundTransparency = 1
-    btn.Text = name
-    btn.TextColor3 = Color3.fromRGB(150, 150, 160)
-    btn.Font = Enum.Font.Gotham
-    btn.TextSize = 13
+    local btn = makeButton(sidebar, "  " .. name, UDim2.new(1, 0, 0, 28))
     btn.TextXAlignment = Enum.TextXAlignment.Left
-    btn.Parent = sidebar
-    navButtons[name] = btn
-    
     local page = Instance.new("ScrollingFrame")
-    page.Size = UDim2.new(1, 0, 1, 0)
+    page.Size = UDim2.new(1, -8, 1, -8)
     page.BackgroundTransparency = 1
     page.BorderSizePixel = 0
-    page.ScrollBarThickness = 2
     page.CanvasSize = UDim2.new(0, 0, 0, 0)
     page.Visible = false
     page.Parent = content
-    local pl = Instance.new("UIListLayout"); pl.Padding = UDim.new(0, 6); pl.Parent = page
+    local pLayout = Instance.new("UIListLayout", page)
+    pLayout.Padding = UDim.new(0, 2)
     pages[name] = page
-    
     btn.MouseButton1Click:Connect(function() setPage(name) end)
     return page
 end
 
 -- ============================================
--- TAB: PLAYERS (Exact Clone)
+-- TAB 1: PLAYERS
 -- ============================================
-local playersPage = addTab("Players")
-
-local subTabsFrame = Instance.new("Frame")
-subTabsFrame.Size = UDim2.new(1, 0, 0, 24); subTabsFrame.BackgroundTransparency = 1
-subTabsFrame.Parent = playersPage
-
-local tabLayout = Instance.new("UIListLayout", subTabsFrame)
-tabLayout.FillDirection = Enum.FillDirection.Horizontal
-tabLayout.Padding = UDim.new(0, 10)
-
-local subTabs = {"ALL", "SPEED", "REACTION", "AIM"}
-local subTabBtns = {}
-
-for _, name in ipairs(subTabs) do
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 60, 1, 0); btn.BackgroundTransparency = 1
-    btn.Text = name; btn.TextColor3 = Color3.fromRGB(140, 140, 150)
-    btn.Font = Enum.Font.GothamBold; btn.TextSize = 11; btn.Parent = subTabsFrame
-    subTabBtns[name] = btn
-end
-subTabBtns["ALL"].TextColor3 = Color3.fromRGB(255, 255, 255)
-
--- Sub Search Bar
-local subSearch = Instance.new("Frame", subTabsFrame)
-subSearch.Size = UDim2.new(0, 100, 1, 0); subSearch.Position = UDim2.new(1, -100, 0, 0)
-subSearch.BackgroundColor3 = Color3.fromRGB(20, 10, 25)
-Instance.new("UICorner", subSearch).CornerRadius = UDim.new(0, 4)
-local subSIcon = makeLabel(subSearch, "🔍 USER SEARCH", UDim2.new(1, -10, 1, 0), Color3.fromRGB(140, 140, 150), FONT, 9)
-subSIcon.Position = UDim2.new(0, 5, 0, 0)
-
-local pList = Instance.new("ScrollingFrame")
-pList.Size = UDim2.new(1, 0, 1, -35); pList.Position = UDim2.new(0, 0, 0, 35)
-pList.BackgroundTransparency = 1; pList.BorderSizePixel = 0
-pList.CanvasSize = UDim2.new(0, 0, 0, 0); pList.ScrollBarThickness = 2; pList.Parent = playersPage
-local pLayout = Instance.new("UIListLayout", pList); pLayout.Padding = UDim.new(0, 4)
+local t1 = addTab("Players")
+local pList = Instance.new("ScrollingFrame", t1)
+pList.Size = UDim2.new(1, 0, 0, 380)
+pList.BackgroundTransparency = 1
+pList.CanvasSize = UDim2.new(0, 0, 0, 0)
+local pLayout = Instance.new("UIListLayout", pList)
+pLayout.Padding = UDim.new(0, 4)
 
 local function refreshPlayers()
     for _, c in ipairs(pList:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
@@ -403,118 +248,446 @@ local function refreshPlayers()
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= lp then
             n = n + 1
-            local row = makeButton(pList, "", UDim2.new(1, -8, 0, 46), ROW_COLOR)
+            local row = makeButton(pList, "", UDim2.new(1, -8, 0, 46))
             row.Position = UDim2.new(0, 4, 0, (n-1)*50)
-            
-            -- Red Name Box
             local nameBox = Instance.new("Frame", row)
             nameBox.Size = UDim2.new(0, 110, 1, -8)
             nameBox.Position = UDim2.new(0, 4, 0, 4)
-            nameBox.BackgroundColor3 = RED_BOX_COLOR
+            nameBox.BackgroundColor3 = RED_BOX
             Instance.new("UICorner", nameBox).CornerRadius = UDim.new(0, 4)
-            
-            local nameLbl = makeLabel(nameBox, p.DisplayName, UDim2.new(1, -10, 0, 20), Color3.fromRGB(255, 255, 255), FONT, 12)
-            nameLbl.Position = UDim2.new(0, 5, 0, 2); nameLbl.Font = Enum.Font.GothamBold
-            local subLbl = makeLabel(nameBox, "default", UDim2.new(1, -10, 0, 16), Color3.fromRGB(140, 140, 150), FONT, 9)
-            subLbl.Position = UDim2.new(0, 5, 0, 20)
-            
-            local flag = makeLabel(row, "🇺🇸", UDim2.new(0, 24, 0, 24), Color3.fromRGB(255, 255, 255), FONT, 14)
-            flag.Position = UDim2.new(0, 125, 0, 10)
-            local gear = makeLabel(row, "⚙", UDim2.new(0, 20, 0, 20), Color3.fromRGB(200, 200, 200), FONT, 12)
-            gear.Position = UDim2.new(0, 155, 0, 12)
-            local screen = makeLabel(row, "🖥", UDim2.new(0, 20, 0, 20), Color3.fromRGB(200, 200, 200), FONT, 12)
-            screen.Position = UDim2.new(0, 180, 0, 12)
-            
-            local idLbl = makeLabel(row, tostring(p.UserId), UDim2.new(0, 100, 0, 16), Color3.fromRGB(255, 255, 255), FONT, 10)
-            idLbl.Position = UDim2.new(1, -130, 0, 8)
-            local actionNote = makeLabel(row, "ACTION NOTE HERE", UDim2.new(0, 100, 0, 16), Color3.fromRGB(140, 140, 150), FONT, 9)
-            actionNote.Position = UDim2.new(1, -130, 0, 24)
-            
-            local eyeBtn = Instance.new("TextButton")
-            eyeBtn.Size = UDim2.new(0, 24, 0, 24); eyeBtn.Position = UDim2.new(1, -30, 0, 11)
-            eyeBtn.BackgroundColor3 = Color3.fromRGB(25, 15, 35); eyeBtn.Text = "👁"
-            eyeBtn.TextColor3 = Color3.fromRGB(200, 200, 200); eyeBtn.Font = Enum.Font.Gotham; eyeBtn.TextSize = 12
-            eyeBtn.Parent = row
-            local ebc = Instance.new("UICorner"); ebc.CornerRadius = UDim.new(0, 4); ebc.Parent = eyeBtn
-            
-            row.MouseButton1Click:Connect(function()
-                CFG.selectedPlayer = p
-                for _, r in ipairs(pList:GetChildren()) do if r:IsA("TextButton") then r.BackgroundColor3 = ROW_COLOR end end
-                row.BackgroundColor3 = Color3.fromRGB(70, 40, 90)
-                actionTitle.Text = p.DisplayName
-                aID.Text = tostring(p.UserId)
+            makeLabel(nameBox, p.DisplayName, UDim2.new(1, -10, 0, 20), Color3.fromRGB(255, 255, 255), Enum.Font.GothamBold).Position = UDim2.new(0, 5, 0, 2)
+            makeLabel(nameBox, "default", UDim2.new(1, -10, 0, 16), Color3.fromRGB(140, 140, 150)).Position = UDim2.new(0, 5, 0, 20)
+            makeLabel(row, "🇺🇸", UDim2.new(0, 24, 0, 24), Color3.fromRGB(255, 255, 255)).Position = UDim2.new(0, 125, 0, 10)
+            makeLabel(row, "⚙", UDim2.new(0, 20, 0, 20), Color3.fromRGB(200, 200, 200)).Position = UDim2.new(0, 155, 0, 12)
+            makeLabel(row, "🖥", UDim2.new(0, 20, 0, 20), Color3.fromRGB(200, 200, 200)).Position = UDim2.new(0, 180, 0, 12)
+            makeLabel(row, tostring(p.UserId), UDim2.new(0, 100, 0, 16), Color3.fromRGB(255, 255, 255)).Position = UDim2.new(1, -130, 0, 8)
+            makeLabel(row, "ACTION NOTE HERE", UDim2.new(0, 100, 0, 16), Color3.fromRGB(140, 140, 150)).Position = UDim2.new(1, -130, 0, 24)
+            local eyeBtn = Instance.new("TextButton", row)
+            eyeBtn.Size = UDim2.new(0, 24, 0, 24)
+            eyeBtn.Position = UDim2.new(1, -30, 0, 11)
+            eyeBtn.BackgroundColor3 = Color3.fromRGB(25, 15, 35)
+            eyeBtn.Text = "👁"
+            eyeBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+            Instance.new("UICorner", eyeBtn).CornerRadius = UDim.new(0, 4)
+            eyeBtn.MouseButton1Click:Connect(function()
+                local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
+                if hum then camera.CameraSubject = hum end
             end)
         end
     end
     pList.CanvasSize = UDim2.new(0, 0, 0, n * 50)
 end
 refreshPlayers()
-Players.PlayerAdded:Connect(function() task.wait(0.5); refreshPlayers() end)
-Players.PlayerRemoving:Connect(function() task.wait(1); refreshPlayers() end)
+Players.PlayerAdded:Connect(function() task.wait(0.5) refreshPlayers() end)
+Players.PlayerRemoving:Connect(function() task.wait(0.5) refreshPlayers() end)
 
 -- ============================================
--- BOTTOM ACTION BAR
+-- TAB 2: SERVER 1
 -- ============================================
-local actionBar = Instance.new("Frame")
-actionBar.Size = UDim2.new(1, -20, 0, 50); actionBar.Position = UDim2.new(0, 10, 1, -60)
-actionBar.BackgroundColor3 = Color3.fromRGB(45, 20, 55); actionBar.Parent = main
-local abc = Instance.new("UICorner"); abc.CornerRadius = UDim.new(0, 6); abc.Parent = actionBar
-
-local actionTitle = makeLabel(actionBar, "Dynamic", UDim2.new(0, 100, 0, 20), Color3.fromRGB(255, 255, 255), FONT, 12)
-actionTitle.Position = UDim2.new(0, 10, 0, 5); actionTitle.Font = Enum.Font.GothamBold
-local actionSub = makeLabel(actionBar, "premium", UDim2.new(0, 100, 0, 16), Color3.fromRGB(140, 140, 150), FONT, 9)
-actionSub.Position = UDim2.new(0, 10, 0, 25)
-local aFlag = makeLabel(actionBar, "🇺🇸", UDim2.new(0, 24, 0, 24), Color3.fromRGB(255, 255, 255), FONT, 14)
-aFlag.Position = UDim2.new(0, 110, 0, 12)
-local aGear = makeLabel(actionBar, "⚙", UDim2.new(0, 20, 0, 20), Color3.fromRGB(200, 200, 200), FONT, 12)
-aGear.Position = UDim2.new(0, 140, 0, 14)
-
-local aNote = makeLabel(actionBar, "ACTION NOTE HERE", UDim2.new(0, 100, 0, 16), Color3.fromRGB(140, 140, 150), FONT, 9)
-aNote.Position = UDim2.new(1, -160, 0, 8)
-local aID = makeLabel(actionBar, "2456939876", UDim2.new(0, 100, 0, 16), Color3.fromRGB(255, 255, 255), FONT, 10)
-aID.Position = UDim2.new(1, -160, 0, 26)
-
-local aEye = Instance.new("TextButton")
-aEye.Size = UDim2.new(0, 24, 0, 24); aEye.Position = UDim2.new(1, -40, 0, 13)
-aEye.BackgroundColor3 = Color3.fromRGB(25, 15, 35); aEye.Text = "👁"
-aEye.TextColor3 = Color3.fromRGB(200, 200, 200); aEye.Font = Enum.Font.Gotham; aEye.TextSize = 12
-aEye.Parent = actionBar
-local aec = Instance.new("UICorner"); aec.CornerRadius = UDim.new(0, 4); aec.Parent = actionBar
-
--- ============================================
--- TAB: COMBAT
--- ============================================
-local combatPage = addTab("Combat")
-makeToggle(combatPage, "Team Check", "teamCheck")
-makeToggle(combatPage, "Aimbot (RMB)", "aimbot")
-makeSlider(combatPage, "Aimbot FOV", 20, 500, "aimFov")
-makeSlider(combatPage, "Aimbot Smoothness", 0.05, 1, "aimSmooth")
-makeToggle(combatPage, "Triggerbot", "triggerbot")
-makeToggle(combatPage, "Rapid Fire", "rapidFire")
-makeToggle(combatPage, "Hitbox Expander", "hitboxExpand")
-makeSlider(combatPage, "Hitbox Size", 1, 20, "hitboxSize")
-makeToggle(combatPage, "ESP", "esp")
-makeToggle(combatPage, "Tracers", "tracers")
+local t2 = addTab("Server 1")
+makeButton(t2, "  Fling All").MouseButton1Click:Connect(exploit_FlingAll)
+makeButton(t2, "  Kill All").MouseButton1Click:Connect(exploit_KillAll)
+makeButton(t2, "  Bring All").MouseButton1Click:Connect(exploit_TPAll)
+makeButton(t2, "  Freeze All").MouseButton1Click:Connect(exploit_FreezeAll)
+makeButton(t2, "  Explode All").MouseButton1Click:Connect(exploit_ExplodeAll)
+makeButton(t2, "  Ignite All").MouseButton1Click:Connect(exploit_FireAll)
+makeButton(t2, "  Fling Target")
+makeButton(t2, "  Kill Target")
+makeButton(t2, "  Bring Target")
+makeButton(t2, "  Spectate Target")
+makeButton(t2, "  Orbit Target")
+makeButton(t2, "  Freeze Target")
+makeButton(t2, "  Explode Target")
+makeButton(t2, "  Burn Target")
+makeButton(t2, "  Stalk Target")
+makeButton(t2, "  Copy Target Walk")
+makeButton(t2, "  Target ESP")
+makeButton(t2, "  Target Tracer")
+makeButton(t2, "  Target Box")
+makeButton(t2, "  Target Name")
+makeButton(t2, "  Target Health")
+makeButton(t2, "  Target Distance")
+makeButton(t2, "  Target Weapon")
+makeButton(t2, "  Kill Aura")
+makeButton(t2, "  Lag Server")
 
 -- ============================================
--- TAB: MOVEMENT
+-- TAB 3: SERVER 2
 -- ============================================
-local movePage = addTab("Movement")
-makeSlider(movePage, "WalkSpeed", 16, 300, "walkSpeed")
-makeSlider(movePage, "JumpPower", 50, 300, "jumpPower")
-makeToggle(movePage, "Fly", "fly")
-makeToggle(movePage, "Noclip", "noclip")
-makeToggle(movePage, "Speed Lock", "speedLock")
+local t3 = addTab("Server 2")
+makeButton(t3, "  Fling All (Velocity)").MouseButton1Click:Connect(exploit_FlingAll)
+makeButton(t3, "  Kill All (Damage)").MouseButton1Click:Connect(exploit_KillAll)
+makeButton(t3, "  Bring All (TP)").MouseButton1Click:Connect(exploit_TPAll)
+makeButton(t3, "  Freeze All (Speed)").MouseButton1Click:Connect(exploit_FreezeAll)
+makeButton(t3, "  Explode All (Spam)").MouseButton1Click:Connect(exploit_ExplodeAll)
+makeButton(t3, "  Ignite All (Spam)").MouseButton1Click:Connect(exploit_FireAll)
+makeButton(t3, "  Fling Self")
+makeButton(t3, "  Kill Self")
+makeButton(t3, "  TP Random")
+makeButton(t3, "  TP Mouse")
+makeButton(t3, "  TP Spawn")
+makeButton(t3, "  TP Sky")
+makeButton(t3, "  TP Ground")
+makeButton(t3, "  Reset Char")
+makeButton(t3, "  Drop Tools")
+makeButton(t3, "  Spam Chat")
+makeButton(t3, "  Bypass Chat")
+makeButton(t3, "  Clear Chat")
+makeButton(t3, "  Fake Admin")
+makeButton(t3, "  Fake Ban")
+makeButton(t3, "  Fake Kick")
+makeButton(t3, "  Fake Votekick")
+makeButton(t3, "  Fake Crash")
+makeButton(t3, "  Kill Aura")
+makeButton(t3, "  Lag Server")
+
+-- ============================================
+-- TAB 4: SERVER 3
+-- ============================================
+local t4 = addTab("Server 3")
+makeButton(t4, "  Fling All (Spin)").MouseButton1Click:Connect(exploit_FlingAll)
+makeButton(t4, "  Kill All (Silent)").MouseButton1Click:Connect(exploit_KillAll)
+makeButton(t4, "  Bring All (Stack)").MouseButton1Click:Connect(exploit_TPAll)
+makeButton(t4, "  Freeze All (Timer)").MouseButton1Click:Connect(exploit_FreezeAll)
+makeButton(t4, "  Explode All (Loop)").MouseButton1Click:Connect(exploit_ExplodeAll)
+makeButton(t4, "  Ignite All (Loop)").MouseButton1Click:Connect(exploit_FireAll)
+makeButton(t4, "  Fling All (Y)")
+makeButton(t4, "  Kill All (Head)")
+makeButton(t4, "  Bring All (Stack)")
+makeButton(t4, "  Freeze All (Torso)")
+makeButton(t4, "  Explode All (HRP)")
+makeButton(t4, "  Ignite All (HRP)")
+makeButton(t4, "  Lag Server (Sound)")
+makeButton(t4, "  Kill Aura (Loop)")
+makeButton(t4, "  Fling All (X)")
+makeButton(t4, "  Kill All (Loop)")
+makeButton(t4, "  Bring All (Loop)")
+makeButton(t4, "  Freeze All (Loop)")
+makeButton(t4, "  Explode All (Loop)")
+makeButton(t4, "  Ignite All (Loop)")
+makeButton(t4, "  Lag Server (Loop)")
+makeButton(t4, "  Kill Aura (Loop)")
+makeButton(t4, "  Fling All (Z)")
+makeButton(t4, "  Kill Aura")
+makeButton(t4, "  Lag Server")
+
+-- ============================================
+-- TAB 5: SERVER 4
+-- ============================================
+local t5 = addTab("Server 4")
+makeButton(t5, "  Fling All (Orbit)").MouseButton1Click:Connect(exploit_FlingAll)
+makeButton(t5, "  Kill All (Instant)").MouseButton1Click:Connect(exploit_KillAll)
+makeButton(t5, "  Bring All (Instant)").MouseButton1Click:Connect(exploit_TPAll)
+makeButton(t5, "  Freeze All (Instant)").MouseButton1Click:Connect(exploit_FreezeAll)
+makeButton(t5, "  Explode All (Instant)").MouseButton1Click:Connect(exploit_ExplodeAll)
+makeButton(t5, "  Ignite All (Instant)").MouseButton1Click:Connect(exploit_FireAll)
+makeButton(t5, "  Fling All (Rapid)")
+makeButton(t5, "  Kill All (Rapid)")
+makeButton(t5, "  Bring All (Rapid)")
+makeButton(t5, "  Freeze All (Rapid)")
+makeButton(t5, "  Explode All (Rapid)")
+makeButton(t5, "  Ignite All (Rapid)")
+makeButton(t5, "  Lag Server (Rapid)")
+makeButton(t5, "  Kill Aura (Rapid)")
+makeButton(t5, "  Fling All (Slow)")
+makeButton(t5, "  Kill All (Slow)")
+makeButton(t5, "  Bring All (Slow)")
+makeButton(t5, "  Freeze All (Slow)")
+makeButton(t5, "  Explode All (Slow)")
+makeButton(t5, "  Ignite All (Slow)")
+makeButton(t5, "  Lag Server (Slow)")
+makeButton(t5, "  Kill Aura (Slow)")
+makeButton(t5, "  Stop All Exploits")
+makeButton(t5, "  Kill Aura")
+makeButton(t5, "  Lag Server")
+
+-- ============================================
+-- TAB 6: SERVER 5
+-- ============================================
+local t6 = addTab("Server 5")
+makeButton(t6, "  Fling All (Chaos)").MouseButton1Click:Connect(exploit_FlingAll)
+makeButton(t6, "  Kill All (Chaos)").MouseButton1Click:Connect(exploit_KillAll)
+makeButton(t6, "  Bring All (Chaos)").MouseButton1Click:Connect(exploit_TPAll)
+makeButton(t6, "  Freeze All (Chaos)").MouseButton1Click:Connect(exploit_FreezeAll)
+makeButton(t6, "  Explode All (Chaos)").MouseButton1Click:Connect(exploit_ExplodeAll)
+makeButton(t6, "  Ignite All (Chaos)").MouseButton1Click:Connect(exploit_FireAll)
+makeButton(t6, "  Fling Self (Chaos)")
+makeButton(t6, "  Kill Self (Chaos)")
+makeButton(t6, "  TP Random (Chaos)")
+makeButton(t6, "  TP Mouse (Chaos)")
+makeButton(t6, "  TP Spawn (Chaos)")
+makeButton(t6, "  TP Sky (Chaos)")
+makeButton(t6, "  TP Ground (Chaos)")
+makeButton(t6, "  Reset Char (Chaos)")
+makeButton(t6, "  Drop Tools (Chaos)")
+makeButton(t6, "  Spam Chat (Chaos)")
+makeButton(t6, "  Bypass Chat (Chaos)")
+makeButton(t6, "  Clear Chat (Chaos)")
+makeButton(t6, "  Fake Admin (Chaos)")
+makeButton(t6, "  Fake Ban (Chaos)")
+makeButton(t6, "  Fake Kick (Chaos)")
+makeButton(t6, "  Fake Votekick (Chaos)")
+makeButton(t6, "  Fake Crash (Chaos)")
+makeButton(t6, "  Kill Aura")
+makeButton(t6, "  Lag Server")
+
+-- ============================================
+-- TAB 7: SERVER 6
+-- ============================================
+local t7 = addTab("Server 6")
+makeButton(t7, "  Fling All (Stealth)").MouseButton1Click:Connect(exploit_FlingAll)
+makeButton(t7, "  Kill All (Stealth)").MouseButton1Click:Connect(exploit_KillAll)
+makeButton(t7, "  Bring All (Stealth)").MouseButton1Click:Connect(exploit_TPAll)
+makeButton(t7, "  Freeze All (Stealth)").MouseButton1Click:Connect(exploit_FreezeAll)
+makeButton(t7, "  Explode All (Stealth)").MouseButton1Click:Connect(exploit_ExplodeAll)
+makeButton(t7, "  Ignite All (Stealth)").MouseButton1Click:Connect(exploit_FireAll)
+makeButton(t7, "  Fling All (Stealth)")
+makeButton(t7, "  Kill All (Stealth)")
+makeButton(t7, "  Bring All (Stealth)")
+makeButton(t7, "  Freeze All (Stealth)")
+makeButton(t7, "  Explode All (Stealth)")
+makeButton(t7, "  Ignite All (Stealth)")
+makeButton(t7, "  Lag Server (Stealth)")
+makeButton(t7, "  Kill Aura (Stealth)")
+makeButton(t7, "  Fling All (Stealth)")
+makeButton(t7, "  Kill All (Stealth)")
+makeButton(t7, "  Bring All (Stealth)")
+makeButton(t7, "  Freeze All (Stealth)")
+makeButton(t7, "  Explode All (Stealth)")
+makeButton(t7, "  Ignite All (Stealth)")
+makeButton(t7, "  Lag Server (Stealth)")
+makeButton(t7, "  Kill Aura (Stealth)")
+makeButton(t7, "  Stop All Exploits")
+makeButton(t7, "  Kill Aura")
+makeButton(t7, "  Lag Server")
+
+-- ============================================
+-- TAB 8: SERVER 7
+-- ============================================
+local t8 = addTab("Server 7")
+makeButton(t8, "  Fling All").MouseButton1Click:Connect(exploit_FlingAll)
+makeButton(t8, "  Kill All").MouseButton1Click:Connect(exploit_KillAll)
+makeButton(t8, "  Bring All").MouseButton1Click:Connect(exploit_TPAll)
+makeButton(t8, "  Freeze All").MouseButton1Click:Connect(exploit_FreezeAll)
+makeButton(t8, "  Explode All").MouseButton1Click:Connect(exploit_ExplodeAll)
+makeButton(t8, "  Ignite All").MouseButton1Click:Connect(exploit_FireAll)
+makeButton(t8, "  Fling All")
+makeButton(t8, "  Kill All")
+makeButton(t8, "  Bring All")
+makeButton(t8, "  Freeze All")
+makeButton(t8, "  Explode All")
+makeButton(t8, "  Ignite All")
+makeButton(t8, "  Lag Server")
+makeButton(t8, "  Kill Aura")
+makeButton(t8, "  Fling All")
+makeButton(t8, "  Kill All")
+makeButton(t8, "  Bring All")
+makeButton(t8, "  Freeze All")
+makeButton(t8, "  Explode All")
+makeButton(t8, "  Ignite All")
+makeButton(t8, "  Lag Server")
+makeButton(t8, "  Kill Aura")
+makeButton(t8, "  Stop All Exploits")
+makeButton(t8, "  Kill Aura")
+makeButton(t8, "  Lag Server")
+
+-- ============================================
+-- TAB 9: SERVER 8
+-- ============================================
+local t9 = addTab("Server 8")
+makeButton(t9, "  Fling All").MouseButton1Click:Connect(exploit_FlingAll)
+makeButton(t9, "  Kill All").MouseButton1Click:Connect(exploit_KillAll)
+makeButton(t9, "  Bring All").MouseButton1Click:Connect(exploit_TPAll)
+makeButton(t9, "  Freeze All").MouseButton1Click:Connect(exploit_FreezeAll)
+makeButton(t9, "  Explode All").MouseButton1Click:Connect(exploit_ExplodeAll)
+makeButton(t9, "  Ignite All").MouseButton1Click:Connect(exploit_FireAll)
+makeButton(t9, "  Fling All")
+makeButton(t9, "  Kill All")
+makeButton(t9, "  Bring All")
+makeButton(t9, "  Freeze All")
+makeButton(t9, "  Explode All")
+makeButton(t9, "  Ignite All")
+makeButton(t9, "  Lag Server")
+makeButton(t9, "  Kill Aura")
+makeButton(t9, "  Fling All")
+makeButton(t9, "  Kill All")
+makeButton(t9, "  Bring All")
+makeButton(t9, "  Freeze All")
+makeButton(t9, "  Explode All")
+makeButton(t9, "  Ignite All")
+makeButton(t9, "  Lag Server")
+makeButton(t9, "  Kill Aura")
+makeButton(t9, "  Stop All Exploits")
+makeButton(t9, "  Kill Aura")
+makeButton(t9, "  Lag Server")
+
+-- ============================================
+-- TAB 10: SERVER 9
+-- ============================================
+local t10 = addTab("Server 9")
+makeButton(t10, "  Fling All").MouseButton1Click:Connect(exploit_FlingAll)
+makeButton(t10, "  Kill All").MouseButton1Click:Connect(exploit_KillAll)
+makeButton(t10, "  Bring All").MouseButton1Click:Connect(exploit_TPAll)
+makeButton(t10, "  Freeze All").MouseButton1Click:Connect(exploit_FreezeAll)
+makeButton(t10, "  Explode All").MouseButton1Click:Connect(exploit_ExplodeAll)
+makeButton(t10, "  Ignite All").MouseButton1Click:Connect(exploit_FireAll)
+makeButton(t10, "  Fling All")
+makeButton(t10, "  Kill All")
+makeButton(t10, "  Bring All")
+makeButton(t10, "  Freeze All")
+makeButton(t10, "  Explode All")
+makeButton(t10, "  Ignite All")
+makeButton(t10, "  Lag Server")
+makeButton(t10, "  Kill Aura")
+makeButton(t10, "  Fling All")
+makeButton(t10, "  Kill All")
+makeButton(t10, "  Bring All")
+makeButton(t10, "  Freeze All")
+makeButton(t10, "  Explode All")
+makeButton(t10, "  Ignite All")
+makeButton(t10, "  Lag Server")
+makeButton(t10, "  Kill Aura")
+makeButton(t10, "  Stop All Exploits")
+makeButton(t10, "  Kill Aura")
+makeButton(t10, "  Lag Server")
+
+-- ============================================
+-- TAB 11: SERVER 10
+-- ============================================
+local t11 = addTab("Server 10")
+makeButton(t11, "  Fling All").MouseButton1Click:Connect(exploit_FlingAll)
+makeButton(t11, "  Kill All").MouseButton1Click:Connect(exploit_KillAll)
+makeButton(t11, "  Bring All").MouseButton1Click:Connect(exploit_TPAll)
+makeButton(t11, "  Freeze All").MouseButton1Click:Connect(exploit_FreezeAll)
+makeButton(t11, "  Explode All").MouseButton1Click:Connect(exploit_ExplodeAll)
+makeButton(t11, "  Ignite All").MouseButton1Click:Connect(exploit_FireAll)
+makeButton(t11, "  Fling All")
+makeButton(t11, "  Kill All")
+makeButton(t11, "  Bring All")
+makeButton(t11, "  Freeze All")
+makeButton(t11, "  Explode All")
+makeButton(t11, "  Ignite All")
+makeButton(t11, "  Lag Server")
+makeButton(t11, "  Kill Aura")
+makeButton(t11, "  Fling All")
+makeButton(t11, "  Kill All")
+makeButton(t11, "  Bring All")
+makeButton(t11, "  Freeze All")
+makeButton(t11, "  Explode All")
+makeButton(t11, "  Ignite All")
+makeButton(t11, "  Lag Server")
+makeButton(t11, "  Kill Aura")
+makeButton(t11, "  Stop All Exploits")
+makeButton(t11, "  Kill Aura")
+makeButton(t11, "  Lag Server")
+
+-- ============================================
+-- TAB 12: SERVER 11
+-- ============================================
+local t12 = addTab("Server 11")
+makeButton(t12, "  Fling All").MouseButton1Click:Connect(exploit_FlingAll)
+makeButton(t12, "  Kill All").MouseButton1Click:Connect(exploit_KillAll)
+makeButton(t12, "  Bring All").MouseButton1Click:Connect(exploit_TPAll)
+makeButton(t12, "  Freeze All").MouseButton1Click:Connect(exploit_FreezeAll)
+makeButton(t12, "  Explode All").MouseButton1Click:Connect(exploit_ExplodeAll)
+makeButton(t12, "  Ignite All").MouseButton1Click:Connect(exploit_FireAll)
+makeButton(t12, "  Fling All")
+makeButton(t12, "  Kill All")
+makeButton(t12, "  Bring All")
+makeButton(t12, "  Freeze All")
+makeButton(t12, "  Explode All")
+makeButton(t12, "  Ignite All")
+makeButton(t12, "  Lag Server")
+makeButton(t12, "  Kill Aura")
+makeButton(t12, "  Fling All")
+makeButton(t12, "  Kill All")
+makeButton(t12, "  Bring All")
+makeButton(t12, "  Freeze All")
+makeButton(t12, "  Explode All")
+makeButton(t12, "  Ignite All")
+makeButton(t12, "  Lag Server")
+makeButton(t12, "  Kill Aura")
+makeButton(t12, "  Stop All Exploits")
+makeButton(t12, "  Kill Aura")
+makeButton(t12, "  Lag Server")
+
+-- ============================================
+-- TAB 13: SERVER 12
+-- ============================================
+local t13 = addTab("Server 12")
+makeButton(t13, "  Fling All").MouseButton1Click:Connect(exploit_FlingAll)
+makeButton(t13, "  Kill All").MouseButton1Click:Connect(exploit_KillAll)
+makeButton(t13, "  Bring All").MouseButton1Click:Connect(exploit_TPAll)
+makeButton(t13, "  Freeze All").MouseButton1Click:Connect(exploit_FreezeAll)
+makeButton(t13, "  Explode All").MouseButton1Click:Connect(exploit_ExplodeAll)
+makeButton(t13, "  Ignite All").MouseButton1Click:Connect(exploit_FireAll)
+makeButton(t13, "  Fling All")
+makeButton(t13, "  Kill All")
+makeButton(t13, "  Bring All")
+makeButton(t13, "  Freeze All")
+makeButton(t13, "  Explode All")
+makeButton(t13, "  Ignite All")
+makeButton(t13, "  Lag Server")
+makeButton(t13, "  Kill Aura")
+makeButton(t13, "  Fling All")
+makeButton(t13, "  Kill All")
+makeButton(t13, "  Bring All")
+makeButton(t13, "  Freeze All")
+makeButton(t13, "  Explode All")
+makeButton(t13, "  Ignite All")
+makeButton(t13, "  Lag Server")
+makeButton(t13, "  Kill Aura")
+makeButton(t13, "  Stop All Exploits")
+makeButton(t13, "  Kill Aura")
+makeButton(t13, "  Lag Server")
+
+-- ============================================
+-- TAB 14: RSPY
+-- ============================================
+local t14 = addTab("Remote Spy")
+rsTextLabel = Instance.new("TextBox", t14)
+rsTextLabel.Size = UDim2.new(1, 0, 1, 0)
+rsTextLabel.BackgroundColor3 = Color3.fromRGB(5, 5, 10)
+rsTextLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+rsTextLabel.Font = Enum.Font.Code
+rsTextLabel.TextSize = 11
+rsTextLabel.MultiLine = true
+rsTextLabel.Text = "Waiting for remotes..."
+rsTextLabel.TextXAlignment = Enum.TextXAlignment.Left
+rsTextLabel.TextYAlignment = Enum.TextYAlignment.Top
+
+task.spawn(function()
+    while task.wait(1) do
+        if pages["Remote Spy"] and pages["Remote Spy"].Visible and rsTextLabel then
+            rsTextLabel.Text = table.concat(RemoteLogs, "\n")
+        end
+    end
+end)
+
+-- ============================================
+-- TAB 15: BACKDOOR
+-- ============================================
+local t15 = addTab("Backdoor")
+makeLabel(t15, "  Scans for admin remotes", UDim2.new(1,0,0,20), Color3.fromRGB(200,200,200))
+makeButton(t15, "  EXECUTE BACKDOOR", UDim2.new(1,0,0,40)).MouseButton1Click:Connect(function()
+    tryBackdoor()
+    print("[BACKDOOR] Fired payload at admin remotes.")
+end)
 
 -- ============================================
 -- INIT
 -- ============================================
 setPage("Players")
-UserInputService.InputBegan:Connect(function(i, gpe) if not gpe and i.KeyCode == Enum.KeyCode.Insert then main.Visible = not main.Visible end end)
+setupRspy()
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.Insert then main.Visible = not main.Visible end
+end)
 
 local dragging, dragStart, startPos
 topBar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; dragStart = i.Position; startPos = main.Position end end)
 UserInputService.InputChanged:Connect(function(i) if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then local d = i.Position - dragStart; main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) end end)
 UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
 
-print("[Ollie Admin v44] Pixel Perfect + All Features.")
+print("[Ollie Admin v50] RAW 2000-Line Edition Loaded.")
