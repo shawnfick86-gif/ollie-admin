@@ -1,5 +1,5 @@
 -- ============================================
--- OLLIE ADMIN v54 • PLAYER LIST & ORBIT KILL
+-- OLLIE ADMIN v55 • COMBAT UPDATE
 -- ============================================
 
 local Players = game:GetService("Players")
@@ -12,6 +12,7 @@ local Lighting = game:GetService("Lighting")
 local lp = Players.LocalPlayer
 local pg = lp:WaitForChild("PlayerGui")
 local camera = workspace.CurrentCamera
+local mouse = lp:GetMouse()
 
 -- THEME CONFIG
 local Theme = {
@@ -32,19 +33,23 @@ local States = {
     Noclip = false,
     InfJump = false,
     Fullbright = false,
-    ChatSpam = false,
     ESP = false,
+    
+    -- COMBAT STATES
+    KillAura = false,
+    Aimbot = false,
+    Triggerbot = false,
+    HitboxExpander = false,
+    AuraRange = 15,
+    
     OrbitTarget = nil,
-    WalkSpeed = 16,
-    JumpPower = 50,
-    TargetPlayer = nil,
 }
 
 -- ============================================
 -- 1. CORE UI ENGINE
 -- ============================================
 local gui = Instance.new("ScreenGui")
-gui.Name = "OllieAdminV54"
+gui.Name = "OllieAdminV55"
 gui.ResetOnSpawn = false
 gui.Parent = pg
 
@@ -61,7 +66,6 @@ stroke.Color = Theme.Accent
 stroke.Thickness = 1.5
 stroke.Transparency = 0.3
 
--- Top Bar
 local topBar = Instance.new("Frame")
 topBar.Size = UDim2.new(1, 0, 0, 40)
 topBar.BackgroundTransparency = 1
@@ -71,7 +75,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -40, 1, 0)
 title.Position = UDim2.new(0, 20, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "OLLIE ADMIN v54"
+title.Text = "OLLIE ADMIN v55"
 title.TextColor3 = Theme.Text
 title.Font = Theme.FontBold
 title.TextSize = 16
@@ -90,7 +94,6 @@ closeBtn.Parent = topBar
 Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 4)
 closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
--- Sidebar
 local sidebar = Instance.new("Frame")
 sidebar.Size = UDim2.new(0, 140, 1, -50)
 sidebar.Position = UDim2.new(0, 10, 0, 45)
@@ -102,7 +105,6 @@ local sideLayout = Instance.new("UIListLayout", sidebar)
 sideLayout.Padding = UDim.new(0, 4)
 sideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
--- Content Area
 local content = Instance.new("Frame")
 content.Size = UDim2.new(1, -160, 1, -50)
 content.Position = UDim2.new(0, 150, 0, 45)
@@ -245,11 +247,32 @@ local function CreateSlider(parent, text, min, max, default, callback)
 end
 
 -- ============================================
--- 2. FEATURE IMPLEMENTATIONS
+-- 2. COMBAT LOGIC
 -- ============================================
+local function GetClosestPlayer(range)
+    local closest = nil
+    local dist = range or math.huge
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+            if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
+                local d = (p.Character.HumanoidRootPart.Position - lp.Character.HumanoidRootPart.Position).Magnitude
+                if d < dist then
+                    dist = d
+                    closest = p
+                end
+            end
+        end
+    end
+    return closest
+end
 
+-- ============================================
+-- 3. MAIN RENDER LOOP
+-- ============================================
 RunService.RenderStepped:Connect(function()
     if not lp.Character then return end
+    
+    -- Movement
     if States.Fly then
         local moveDir = lp.Character.Humanoid.MoveDirection
         local up = UserInputService:IsKeyDown(Enum.KeyCode.Space) and 2 or 0
@@ -262,7 +285,50 @@ RunService.RenderStepped:Connect(function()
         end
     end
     
-    -- ORBIT KILL LOGIC
+    -- Combat
+    local closestTarget = GetClosestPlayer(States.AuraRange)
+    
+    if States.KillAura and closestTarget then
+        local targetHRP = closestTarget.Character.HumanoidRootPart
+        lp.Character.HumanoidRootPart.CFrame = CFrame.lookAt(lp.Character.HumanoidRootPart.Position, Vector3.new(targetHRP.Position.X, lp.Character.HumanoidRootPart.Position.Y, targetHRP.Position.Z))
+        
+        local tool = lp.Character:FindFirstChildOfClass("Tool")
+        if tool then
+            tool:Activate()
+        else
+            -- Auto punch if no tool
+            pcall(function() game:GetService("Players").LocalPlayer.Character.Humanoid:LoadAnimation(game:GetService("Players").LocalPlayer.Character.Animate["toolnone"]["ToolNoneAnim"]):Play() end)
+            local targetHumanoid = closestTarget.Character:FindFirstChild("Humanoid")
+            if targetHumanoid then
+                -- Fake damage for games without remote, usually games like Prison Life handle punch natively if you click
+                mouse.Button1Down:Wait() 
+            end
+        end
+    end
+    
+    if States.Aimbot then
+        local aimTarget = GetClosestPlayer(200)
+        if aimTarget and aimTarget.Character and aimTarget.Character:FindFirstChild("Head") then
+            local headPos = aimTarget.Character.Head.Position
+            camera.CFrame = CFrame.new(camera.CFrame.Position, headPos)
+        end
+    end
+    
+    if States.HitboxExpander then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= lp and p.Character then
+                for _, part in ipairs(p.Character:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        part.Size = Vector3.new(10, 10, 10)
+                        part.Transparency = 0.5
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Orbit
     if States.OrbitTarget and States.OrbitTarget.Character and States.OrbitTarget.Character:FindFirstChild("HumanoidRootPart") and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
         local time = tick()
         local targetPos = States.OrbitTarget.Character.HumanoidRootPart.Position
@@ -274,6 +340,20 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- Triggerbot (Mouse Click Logic)
+mouse.Button1Down:Connect(function()
+    if States.Triggerbot and mouse.Target then
+        local model = mouse.Target:FindFirstAncestorOfClass("Model")
+        if model then
+            local player = Players:GetPlayerFromCharacter(model)
+            if player and player ~= lp then
+                local tool = lp.Character:FindFirstChildOfClass("Tool")
+                if tool then tool:Activate() end
+            end
+        end
+    end
+end)
+
 UserInputService.JumpRequest:Connect(function()
     if States.InfJump and lp.Character and lp.Character:FindFirstChild("Humanoid") then
         lp.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
@@ -281,31 +361,49 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 -- ============================================
--- 3. POPULATE TABS
+-- 4. POPULATE TABS
 -- ============================================
 
-local t1 = CreateTab("Server")
-CreateButton(t1, "Kill All (Client)", function()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp and p.Character and p.Character:FindFirstChild("Humanoid") then
-            p.Character.Humanoid.Health = 0
+local t1 = CreateTab("Combat")
+CreateToggle(t1, "Kill Aura", "KillAura", function(v) States.KillAura = v end)
+CreateToggle(t1, "Aimbot (Camera)", "Aimbot", function(v) States.Aimbot = v end)
+CreateToggle(t1, "Triggerbot", "Triggerbot", function(v) States.Triggerbot = v end)
+CreateToggle(t1, "Hitbox Expander", "Hitbox", function(v) 
+    States.HitboxExpander = v 
+    if not v then
+        -- Reset sizes
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= lp and p.Character then
+                for _, part in ipairs(p.Character:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        part.Size = part:GetAttribute("OrigSize") or Vector3.new(1, 1, 1)
+                        part.Transparency = 0
+                        part.CanCollide = true
+                    end
+                end
+            end
         end
-    end
-end, Color3.fromRGB(150, 0, 0))
-
-CreateButton(t1, "Fling All", function()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            p.Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(1e5, 1e5, 1e5)
+    else
+        -- Save sizes
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= lp and p.Character then
+                for _, part in ipairs(p.Character:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        part:SetAttribute("OrigSize", part.Size)
+                    end
+                end
+            end
         end
     end
 end)
+CreateSlider(t1, "Aura Range", 5, 50, 15, function(v) States.AuraRange = v end)
 
 local t2 = CreateTab("Movement")
 CreateToggle(t2, "Fly", "Fly", function(v) States.Fly = v end)
 CreateToggle(t2, "Noclip", "Noclip", function(v) States.Noclip = v end)
 CreateToggle(t2, "Infinite Jump", "InfJump", function(v) States.InfJump = v end)
 CreateSlider(t2, "WalkSpeed", 16, 250, 16, function(v) if lp.Character and lp.Character:FindFirstChild("Humanoid") then lp.Character.Humanoid.WalkSpeed = v end end)
+CreateSlider(t2, "JumpPower", 50, 250, 50, function(v) if lp.Character and lp.Character:FindFirstChild("Humanoid") then lp.Character.Humanoid.JumpPower = v end end)
 
 local t3 = CreateTab("Visuals")
 CreateToggle(t3, "Fullbright", "Fullbright", function(v)
@@ -313,18 +411,13 @@ CreateToggle(t3, "Fullbright", "Fullbright", function(v)
     else Lighting.Ambient = Color3.fromRGB(70,70,70); Lighting.OutdoorAmbient = Color3.fromRGB(128,128,128) end
 end)
 
--- ============================================
--- PLAYER LIST TAB
--- ============================================
 local t4 = CreateTab("Players")
-
 local playerScroll = Instance.new("ScrollingFrame")
 playerScroll.Size = UDim2.new(1, 0, 1, -40)
 playerScroll.BackgroundTransparency = 1
 playerScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 playerScroll.ScrollBarThickness = 2
 playerScroll.Parent = t4
-
 local pLayout = Instance.new("UIListLayout", playerScroll)
 pLayout.Padding = UDim.new(0, 4)
 
@@ -380,28 +473,16 @@ local function RefreshPlayerList()
         end
         
         makeIconBtn("👁️", function()
-            -- Spectate
-            if p.Character and p.Character:FindFirstChild("Humanoid") then
-                camera.CameraSubject = p.Character.Humanoid
-            end
+            if p.Character and p.Character:FindFirstChild("Humanoid") then camera.CameraSubject = p.Character.Humanoid end
         end)
-        
         makeIconBtn("✨", function()
-            -- TP
-            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
-                lp.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
-            end
+            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then lp.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3) end
         end)
-        
         makeIconBtn("🌀", function()
-            -- Orbit Kill
             States.OrbitTarget = (States.OrbitTarget == p) and nil or p
-            if not States.OrbitTarget then
-                camera.CameraSubject = lp.Character.Humanoid
-            end
+            if not States.OrbitTarget then camera.CameraSubject = lp.Character.Humanoid end
         end)
     end
-    
     playerScroll.CanvasSize = UDim2.new(0, 0, 0, pLayout.AbsoluteContentSize.Y)
 end
 
@@ -409,7 +490,7 @@ CreateButton(t4, "Refresh Player List", RefreshPlayerList)
 RefreshPlayerList()
 
 -- ============================================
--- 4. INITIALIZATION
+-- 5. INITIALIZATION
 -- ============================================
 for _, child in ipairs(sidebar:GetChildren()) do
     if child:IsA("TextButton") then
@@ -420,9 +501,7 @@ end
 
 local dragging, dragStart, startPos
 topBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true; dragStart = input.Position; startPos = main.Position
-    end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; dragStart = input.Position; startPos = main.Position end
 end)
 UserInputService.InputChanged:Connect(function(input)
     if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
@@ -430,8 +509,6 @@ UserInputService.InputChanged:Connect(function(input)
         main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
-end)
+UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
 
-print("[Ollie Admin v54] Loaded. Player List + Orbit Kill active.")
+print("[Ollie Admin v55] Loaded. Combat Update active.")
