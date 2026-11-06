@@ -1,5 +1,5 @@
 -- ============================================
--- OLLIE ADMIN v62 • ORBIT & SPECTATE FIX
+-- OLLIE ADMIN v64 • FIXED CORE & POLISHED UI
 -- ============================================
 
 local Players = game:GetService("Players")
@@ -8,6 +8,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
 local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
 
 local lp = Players.LocalPlayer
 local pg = lp:WaitForChild("PlayerGui")
@@ -16,64 +17,71 @@ local mouse = lp:GetMouse()
 
 -- THEME CONFIG
 local Theme = {
-    BG = Color3.fromRGB(18, 18, 20),
-    Panel = Color3.fromRGB(28, 28, 32),
+    BG = Color3.fromRGB(15, 15, 18),
+    Panel = Color3.fromRGB(22, 22, 28),
+    PanelHover = Color3.fromRGB(30, 30, 38),
     Accent = Color3.fromRGB(255, 66, 161),
     Text = Color3.fromRGB(240, 240, 240),
-    TextDim = Color3.fromRGB(150, 150, 150),
-    Font = Enum.Font.Gotham,
+    TextDim = Color3.fromRGB(130, 130, 140),
+    Font = Enum.Font.GothamMedium,
     FontBold = Enum.Font.GothamBold,
 }
 
 local States = {
-    KillAura = false, Aimbot = false, Triggerbot = false, HitboxExpander = false, TeamCheck = false, VisibleCheck = false,
-    AuraRange = 15, FOVSize = 90, HitboxSize = 10, AimSmoothness = 0.2,
-    Fly = false, Noclip = false, InfJump = false, LockMouse = false,
+    KillAura = false, Aimbot = false, Triggerbot = false, HitboxExpander = false, TeamCheck = false,
+    AuraRange = 15, FOVSize = 150, HitboxSize = 10, AimSmoothness = 0.2,
+    Fly = false, Noclip = false, InfJump = false,
     WalkSpeed = 16, JumpPower = 50, FlySpeed = 50,
     Fullbright = false, 
-    SpectateTarget = nil, 
-    OrbitTarget = nil,
-    OrbitSpeed = 1.5 -- SLOWER ORBIT SPEED
+    SpectateTarget = nil, OrbitTarget = nil, OrbitSpeed = 1.5
 }
+
+local Waypoints = {}
+local bvFly = nil
 
 -- ============================================
 -- 1. CORE UI ENGINE
 -- ============================================
 local gui = Instance.new("ScreenGui")
-gui.Name = "OllieAdminV62"
+gui.Name = "OllieAdminV64"
 gui.ResetOnSpawn = false
 gui.Parent = pg
 
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 640, 0, 420)
-main.Position = UDim2.new(0.5, -320, 0.5, -210)
+main.Size = UDim2.new(0, 600, 0, 420)
+main.Position = UDim2.new(0.5, -300, 0.5, -210)
 main.BackgroundColor3 = Theme.BG
 main.BorderSizePixel = 0
 main.Parent = gui
-Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
+local mainStroke = Instance.new("UIStroke", main)
+mainStroke.Color = Theme.Accent
+mainStroke.Thickness = 1
+mainStroke.Transparency = 0.5
 
 local topBar = Instance.new("Frame")
-topBar.Size = UDim2.new(1, 0, 0, 40)
+topBar.Size = UDim2.new(1, 0, 0, 45)
 topBar.BackgroundTransparency = 1
 topBar.Active = true
 topBar.Parent = main
 
 local logo = Instance.new("TextLabel")
-logo.Size = UDim2.new(0, 40, 1, 0)
+logo.Size = UDim2.new(0, 50, 1, 0)
 logo.Position = UDim2.new(0, 15, 0, 0)
 logo.BackgroundTransparency = 1
-logo.Text = "O"
+logo.Text = "OLLIE"
 logo.TextColor3 = Theme.Accent
 logo.Font = Theme.FontBold
-logo.TextSize = 18
+logo.TextSize = 16
 logo.Active = false
+logo.TextXAlignment = Enum.TextXAlignment.Left
 logo.Parent = topBar
 
 local closeBtn = Instance.new("TextButton")
-closeBtn.Size = UDim2.new(0, 24, 0, 24)
-closeBtn.Position = UDim2.new(1, -34, 0, 8)
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -40, 0, 8)
 closeBtn.BackgroundTransparency = 1
-closeBtn.Text = "X"
+closeBtn.Text = "✕"
 closeBtn.TextColor3 = Theme.TextDim
 closeBtn.Font = Theme.FontBold
 closeBtn.TextSize = 14
@@ -81,8 +89,8 @@ closeBtn.Parent = topBar
 closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
 local sidebar = Instance.new("Frame")
-sidebar.Size = UDim2.new(0, 50, 1, -50)
-sidebar.Position = UDim2.new(0, 10, 0, 45)
+sidebar.Size = UDim2.new(0, 55, 1, -55)
+sidebar.Position = UDim2.new(0, 10, 0, 50)
 sidebar.BackgroundTransparency = 1
 sidebar.Parent = main
 local sideLayout = Instance.new("UIListLayout", sidebar)
@@ -90,10 +98,12 @@ sideLayout.Padding = UDim.new(0, 8)
 sideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local content = Instance.new("Frame")
-content.Size = UDim2.new(1, -80, 1, -50)
-content.Position = UDim2.new(0, 70, 0, 45)
-content.BackgroundTransparency = 1
+content.Size = UDim2.new(1, -85, 1, -60)
+content.Position = UDim2.new(0, 75, 0, 50)
+content.BackgroundColor3 = Theme.Panel
+content.BorderSizePixel = 0
 content.Parent = main
+Instance.new("UICorner", content).CornerRadius = UDim.new(0, 6)
 
 local pages = {}
 local activeTabBtn = nil
@@ -102,12 +112,12 @@ local firstBtn = nil
 
 local function CreateTab(name, iconEmoji)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 36, 0, 36)
+    btn.Size = UDim2.new(0, 40, 0, 40)
     btn.BackgroundColor3 = Theme.BG
     btn.Text = iconEmoji
     btn.TextColor3 = Theme.TextDim
     btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 16
+    btn.TextSize = 18
     btn.BorderSizePixel = 0
     btn.Parent = sidebar
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
@@ -128,15 +138,20 @@ local function CreateTab(name, iconEmoji)
         firstBtn = btn
     end
 
+    local pad = Instance.new("UIPadding", page)
+    pad.PaddingTop = UDim.new(0, 10)
+    pad.PaddingLeft = UDim.new(0, 10)
+    pad.PaddingRight = UDim.new(0, 10)
+
     local leftCol = Instance.new("Frame", page)
-    leftCol.Size = UDim2.new(0.5, -10, 1, 0)
+    leftCol.Size = UDim2.new(0.5, -5, 1, 0)
     leftCol.BackgroundTransparency = 1
     local lList = Instance.new("UIListLayout", leftCol)
     lList.Padding = UDim.new(0, 8)
 
     local rightCol = Instance.new("Frame", page)
-    rightCol.Size = UDim2.new(0.5, -10, 1, 0)
-    rightCol.Position = UDim2.new(0.5, 10, 0, 0)
+    rightCol.Size = UDim2.new(0.5, -5, 1, 0)
+    rightCol.Position = UDim2.new(0.5, 5, 0, 0)
     rightCol.BackgroundTransparency = 1
     local rList = Instance.new("UIListLayout", rightCol)
     rList.Padding = UDim.new(0, 8)
@@ -153,6 +168,7 @@ local function CreateTab(name, iconEmoji)
     return leftCol, rightCol
 end
 
+-- BUILDERS
 local function AddSection(parent, title)
     local f = Instance.new("Frame")
     f.Size = UDim2.new(1, 0, 0, 20)
@@ -169,7 +185,7 @@ local function AddSection(parent, title)
     t.Parent = f
 end
 
-local function AddToggle(parent, text, callback)
+local function AddToggle(parent, text, stateKey, callback)
     local f = Instance.new("Frame")
     f.Size = UDim2.new(1, 0, 0, 24)
     f.BackgroundTransparency = 1
@@ -178,7 +194,7 @@ local function AddToggle(parent, text, callback)
     local box = Instance.new("TextButton")
     box.Size = UDim2.new(0, 18, 0, 18)
     box.Position = UDim2.new(0, 0, 0, 2)
-    box.BackgroundColor3 = Theme.Panel
+    box.BackgroundColor3 = Theme.BG
     box.Text = ""
     box.Parent = f
     Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
@@ -211,7 +227,8 @@ local function AddToggle(parent, text, callback)
         fill.Visible = isOn
         stroke.Color = isOn and Theme.Accent or Theme.TextDim
         lbl.TextColor3 = isOn and Theme.Text or Theme.TextDim
-        callback(isOn)
+        if stateKey then States[stateKey] = isOn end
+        if callback then callback(isOn) end
     end)
 end
 
@@ -237,7 +254,7 @@ local function AddSlider(parent, text, min, max, default, callback)
     valLbl.BackgroundTransparency = 1
     valLbl.Text = tostring(default)
     valLbl.TextColor3 = Theme.Text
-    valLbl.Font = Theme.Font
+    valLbl.Font = Theme.FontBold
     valLbl.TextSize = 11
     valLbl.TextXAlignment = Enum.TextXAlignment.Right
     valLbl.Parent = f
@@ -245,7 +262,7 @@ local function AddSlider(parent, text, min, max, default, callback)
     local bar = Instance.new("Frame")
     bar.Size = UDim2.new(1, 0, 0, 4)
     bar.Position = UDim2.new(0, 0, 0, 24)
-    bar.BackgroundColor3 = Theme.Panel
+    bar.BackgroundColor3 = Theme.BG
     bar.Parent = f
     Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
 
@@ -271,8 +288,8 @@ end
 
 local function AddButton(parent, text, callback, color)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1, 0, 0, 26)
-    b.BackgroundColor3 = color or Theme.Panel
+    b.Size = UDim2.new(1, 0, 0, 28)
+    b.BackgroundColor3 = color or Theme.BG
     b.Text = text
     b.TextColor3 = Theme.Text
     b.Font = Theme.FontBold
@@ -283,186 +300,199 @@ local function AddButton(parent, text, callback, color)
     stroke.Color = Theme.Accent
     stroke.Thickness = 1
     stroke.Transparency = 0.5
-    b.MouseEnter:Connect(function() stroke.Transparency = 0 end)
-    b.MouseLeave:Connect(function() stroke.Transparency = 0.5 end)
+    b.MouseEnter:Connect(function() TweenService:Create(stroke, TweenInfo.new(0.2), {Transparency = 0}):Play() end)
+    b.MouseLeave:Connect(function() TweenService:Create(stroke, TweenInfo.new(0.2), {Transparency = 0.5}):Play() end)
     b.MouseButton1Click:Connect(callback)
 end
 
+local function AddTextBox(parent, placeholder)
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(1, 0, 0, 28)
+    box.BackgroundColor3 = Theme.BG
+    box.Text = ""
+    box.PlaceholderText = placeholder
+    box.TextColor3 = Theme.Text
+    box.PlaceholderColor3 = Theme.TextDim
+    box.Font = Theme.Font
+    box.TextSize = 11
+    box.Parent = parent
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
+    return box
+end
+
 -- ============================================
--- 2. TABS
+-- 2. TABS & FEATURES
 -- ============================================
 
 local cLeft, cRight = CreateTab("Combat", "⚔️")
 AddSection(cLeft, "Combat Features")
-AddToggle(cLeft, "Kill Aura", function(v) States.KillAura = v end)
-AddToggle(cLeft, "Aimbot (Hold RMB)", function(v) States.Aimbot = v end)
-AddToggle(cLeft, "Triggerbot", function(v) States.Triggerbot = v end)
-AddToggle(cLeft, "Hitbox Expander", function(v) States.HitboxExpander = v end)
-AddToggle(cLeft, "Team Check", function(v) States.TeamCheck = v end)
+AddToggle(cLeft, "Kill Aura", "KillAura")
+AddToggle(cLeft, "Aimbot (Hold RMB)", "Aimbot")
+AddToggle(cLeft, "Triggerbot", "Triggerbot")
+AddToggle(cLeft, "Hitbox Expander", "HitboxExpander")
+AddToggle(cLeft, "Team Check", "TeamCheck")
 
 AddSection(cRight, "Settings")
 AddSlider(cRight, "Aura Range", 5, 50, 15, function(v) States.AuraRange = v end)
-AddSlider(cRight, "FOV Size", 10, 360, 90, function(v) States.FOVSize = v end)
+AddSlider(cRight, "Aimbot FOV", 50, 500, 150, function(v) States.FOVSize = v end)
 AddSlider(cRight, "Hitbox Size", 1, 20, 10, function(v) States.HitboxSize = v end)
-AddSlider(cRight, "Aim Smoothness", 0.01, 1, 0.2, function(v) States.AimSmoothness = v end)
+AddSlider(cRight, "Aim Smoothness", 0.05, 1, 0.3, function(v) States.AimSmoothness = v end)
 
 local mLeft, mRight = CreateTab("Movement", "🏃")
 AddSection(mLeft, "Movement Mods")
-AddToggle(mLeft, "Fly", function(v) States.Fly = v end)
-AddToggle(mLeft, "Noclip", function(v) States.Noclip = v end)
-AddToggle(mLeft, "Infinite Jump", function(v) States.InfJump = v end)
+AddToggle(mLeft, "Fly", "Fly", function(v)
+    if v then
+        if not bvFly then
+            bvFly = Instance.new("BodyVelocity")
+            bvFly.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+            bvFly.Parent = lp.Character.HumanoidRootPart
+        end
+    else
+        if bvFly then bvFly:Destroy(); bvFly = nil end
+    end
+end)
+AddToggle(mLeft, "Noclip", "Noclip")
+AddToggle(mLeft, "Infinite Jump", "InfJump")
 
 AddSection(mRight, "Speed Settings")
 AddSlider(mRight, "WalkSpeed", 16, 250, 16, function(v) if lp.Character and lp.Character:FindFirstChild("Humanoid") then lp.Character.Humanoid.WalkSpeed = v end end)
-AddSlider(mRight, "JumpPower", 50, 250, 50, function(v) if lp.Character and lp.Character:FindFirstChild("Humanoid") then lp.Character.Humanoid.JumpPower = v end end)
-AddSlider(mRight, "Fly Speed", 10, 150, 50, function(v) States.FlySpeed = v end)
+AddSlider(mRight, "JumpPower", 50, 500, 50, function(v) 
+    States.JumpPower = v
+    if lp.Character and lp.Character:FindFirstChild("Humanoid") then lp.Character.Humanoid.JumpPower = v end 
+end)
+AddSlider(mRight, "Fly Speed", 10, 200, 50, function(v) States.FlySpeed = v end)
 
 local vLeft, vRight = CreateTab("Visuals", "👁️")
 AddSection(vLeft, "World")
-AddToggle(vLeft, "Fullbright", function(v)
+AddToggle(vLeft, "Fullbright", "Fullbright", function(v)
     if v then Lighting.Ambient = Color3.new(1,1,1); Lighting.OutdoorAmbient = Color3.new(1,1,1)
     else Lighting.Ambient = Color3.fromRGB(70,70,70); Lighting.OutdoorAmbient = Color3.fromRGB(128,128,128) end
 end)
 
-local sLeft, sRight = CreateTab("Misc", "⚙️")
-AddSection(sLeft, "Server Actions")
-AddButton(sLeft, "Kill All (Client)", function()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp and p.Character and p.Character:FindFirstChild("Humanoid") then p.Character.Humanoid.Health = 0 end
+local wLeft, wRight = CreateTab("Waypoints", "📍")
+AddSection(wLeft, "Create Waypoint")
+local wpNameBox = AddTextBox(wLeft, "Waypoint Name")
+AddButton(wLeft, "Add Current Position", function()
+    if wpNameBox.Text ~= "" and lp.Character then
+        Waypoints[wpNameBox.Text] = lp.Character.HumanoidRootPart.CFrame
+        wpNameBox.Text = ""
+        RefreshWaypoints()
     end
-end)
-AddButton(sLeft, "Fling All (Client)", function()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then p.Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(1e5, 1e5, 1e5) end
-    end
-end)
+end, Color3.fromRGB(30, 100, 30))
 
-AddSection(sRight, "Utility")
-AddButton(sRight, "Rejoin Server", function() TeleportService:Teleport(game.PlaceId, lp) end)
-AddButton(sRight, "Unload UI", function() gui:Destroy() end)
+AddSection(wRight, "Saved Waypoints")
+local wpScroll = Instance.new("ScrollingFrame")
+wpScroll.Size = UDim2.new(1, 0, 0, 200)
+wpScroll.BackgroundTransparency = 1
+wpScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+wpScroll.ScrollBarThickness = 2
+wpScroll.Parent = wRight
+local wpLayout = Instance.new("UIListLayout", wpScroll)
+wpLayout.Padding = UDim.new(0, 4)
 
-local pLeft, pRight = CreateTab("Players", "👥")
-pLeft.Size = UDim2.new(1, 0, 1, 0)
-pRight.Visible = false
-
-local playerScroll = Instance.new("ScrollingFrame")
-playerScroll.Size = UDim2.new(1, 0, 0.85, 0)
-playerScroll.BackgroundTransparency = 1
-playerScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-playerScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-playerScroll.ScrollBarThickness = 2
-playerScroll.Parent = pLeft
-local pLayout = Instance.new("UIListLayout", playerScroll)
-pLayout.Padding = UDim.new(0, 4)
-
-local function RefreshPlayerList()
-    for _, v in ipairs(playerScroll:GetChildren()) do
-        if v:IsA("Frame") then v:Destroy() end
-    end
-    for _, p in ipairs(Players:GetPlayers()) do
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, 0, 0, 32)
-        frame.BackgroundColor3 = Theme.Panel
-        frame.Parent = playerScroll
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 4)
-        
-        local nameLbl = Instance.new("TextLabel")
-        nameLbl.Size = UDim2.new(0, 200, 1, 0)
-        nameLbl.Position = UDim2.new(0, 10, 0, 0)
-        nameLbl.BackgroundTransparency = 1
-        nameLbl.Text = p.Name .. " | " .. (p.Team and p.Team.Name or "No Team")
-        nameLbl.TextColor3 = Theme.Text
-        nameLbl.TextSize = 11
-        nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-        nameLbl.Parent = frame
-        
-        local btnContainer = Instance.new("Frame")
-        btnContainer.Size = UDim2.new(0, 100, 1, 0)
-        btnContainer.Position = UDim2.new(1, -110, 0, 0)
-        btnContainer.BackgroundTransparency = 1
-        btnContainer.Parent = frame
-        local bLayout = Instance.new("UIListLayout", btnContainer)
-        bLayout.FillDirection = Enum.FillDirection.Horizontal
-        bLayout.Padding = UDim.new(0, 4)
-        bLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-        
-        local function makeIconBtn(emoji, callback)
-            local b = Instance.new("TextButton")
-            b.Size = UDim2.new(0, 28, 0, 24)
-            b.BackgroundColor3 = Theme.BG
-            b.Text = emoji
-            b.TextSize = 12
-            b.Parent = btnContainer
-            Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
-            b.MouseButton1Click:Connect(callback)
-        end
-        
-        makeIconBtn("👁️", function()
-            if p.Character and p.Character:FindFirstChild("Humanoid") then
-                if States.SpectateTarget == p then
-                    States.SpectateTarget = nil
-                    camera.CameraSubject = lp.Character.Humanoid
-                else
-                    States.SpectateTarget = p
-                    camera.CameraSubject = p.Character.Humanoid
-                end
-            end
-        end)
-        
-        makeIconBtn("✨", function()
-            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then 
-                lp.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3) 
-            end
-        end)
-        
-        makeIconBtn("🌀", function()
-            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                if States.OrbitTarget == p then
-                    States.OrbitTarget = nil
-                    camera.CameraSubject = lp.Character.Humanoid
-                else
-                    States.OrbitTarget = p
-                end
-            end
+function RefreshWaypoints()
+    for _, v in ipairs(wpScroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+    for name, cf in pairs(Waypoints) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, 0, 0, 24)
+        btn.BackgroundColor3 = Theme.BG
+        btn.Text = "TP: " .. name
+        btn.TextColor3 = Theme.Text
+        btn.Font = Theme.Font
+        btn.TextSize = 11
+        btn.Parent = wpScroll
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+        btn.MouseButton1Click:Connect(function()
+            if lp.Character then lp.Character.HumanoidRootPart.CFrame = cf end
         end)
     end
-    playerScroll.CanvasSize = UDim2.new(0, 0, 0, pLayout.AbsoluteContentSize.Y)
 end
-RefreshPlayerList()
 
--- Reset Camera Button
-AddButton(pLeft, "RESET CAMERA & STOP ORBIT", function()
-    States.OrbitTarget = nil
-    States.SpectateTarget = nil
-    if lp.Character and lp.Character:FindFirstChild("Humanoid") then
-        camera.CameraSubject = lp.Character.Humanoid
+local vmLeft, vmRight = CreateTab("Luau VM", "📜")
+vmLeft.Size = UDim2.new(1, 0, 1, 0) 
+vmRight.Visible = false
+
+local scriptBox = Instance.new("TextBox")
+scriptBox.Size = UDim2.new(1, 0, 1, -40)
+scriptBox.BackgroundColor3 = Theme.BG
+scriptBox.Text = "-- Paste Luau script here"
+scriptBox.TextColor3 = Theme.Text
+scriptBox.Font = Enum.Font.Code
+scriptBox.TextSize = 12
+scriptBox.MultiLine = true
+scriptBox.TextXAlignment = Enum.TextXAlignment.Left
+scriptBox.TextYAlignment = Enum.TextYAlignment.Top
+scriptBox.ClearTextOnFocus = false
+scriptBox.Parent = vmLeft
+Instance.new("UICorner", scriptBox).CornerRadius = UDim.new(0, 4)
+
+AddButton(vmLeft, "EXECUTE SCRIPT", function()
+    local code = scriptBox.Text
+    local func, err = loadstring(code)
+    if func then
+        local success, runtimeErr = pcall(func)
+        if not success then print("[Luau VM Error]:", runtimeErr) end
+    else
+        print("[Luau VM Compile Error]:", err)
     end
-end, Color3.fromRGB(180, 50, 50))
+end, Color3.fromRGB(150, 50, 50))
 
 -- ============================================
--- 3. RENDER LOGIC
+-- 3. RENDER LOGIC & FIXES
 -- ============================================
 RunService.RenderStepped:Connect(function()
     if not lp.Character then return end
+    local hum = lp.Character:FindFirstChild("Humanoid")
+    if not hum then return end
     
-    -- Spectate Logic (Keep camera locked)
-    if States.SpectateTarget and States.SpectateTarget.Character and States.SpectateTarget.Character:FindFirstChild("Humanoid") then
-        camera.CameraSubject = States.SpectateTarget.Character.Humanoid
+    -- FLY (BodyVelocity)
+    if States.Fly and bvFly then
+        local moveDir = hum.MoveDirection
+        local camCF = workspace.CurrentCamera.CFrame
+        local up = UserInputService:IsKeyDown(Enum.KeyCode.Space) and States.FlySpeed or 0
+        local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and -States.FlySpeed or 0
+        
+        local flyVector = (camCF.LookVector * (moveDir.Z * -1)) + (camCF.RightVector * moveDir.X) + Vector3.new(0, (up + down), 0)
+        if flyVector.Magnitude > 0 then
+            bvFly.Velocity = flyVector.Unit * States.FlySpeed
+        else
+            bvFly.Velocity = Vector3.new(0,0,0)
+        end
     end
     
-    if States.Fly then
-        local move = lp.Character.Humanoid.MoveDirection
-        local up = UserInputService:IsKeyDown(Enum.KeyCode.Space) and 2 or 0
-        local down = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and -2 or 0
-        lp.Character.HumanoidRootPart.CFrame = lp.Character.HumanoidRootPart.CFrame + (move * (States.FlySpeed/50)) + Vector3.new(0, up + down, 0)
-    end
-    if States.Noclip then
-        for _, v in pairs(lp.Character:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = false end end
+    -- AIMBOT (Standard Camera CFrame)
+    if States.Aimbot and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+        local closest = nil
+        local dist = math.huge
+        local mousePos = UserInputService:GetMouseLocation()
+        
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= lp and p.Character and p.Character:FindFirstChild("Head") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+                if not States.TeamCheck or (lp.Team ~= p.Team) then
+                    local head = p.Character.Head
+                    local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
+                    if onScreen then
+                        local screenVec = Vector2.new(screenPos.X, screenPos.Y)
+                        local distanceToMouse = (screenVec - mousePos).Magnitude
+                        if distanceToMouse < dist and distanceToMouse < States.FOVSize then
+                            dist = distanceToMouse
+                            closest = head
+                        end
+                    end
+                end
+            end
+        end
+        
+        if closest then
+            local targetCFrame = CFrame.new(camera.CFrame.Position, closest.Position)
+            camera.CFrame = camera.CFrame:Lerp(targetCFrame, States.AimSmoothness)
+        end
     end
     
+    -- KILL AURA
     if States.KillAura then
         for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
                 if not States.TeamCheck or (lp.Team ~= p.Team) then
                     if (p.Character.HumanoidRootPart.Position - lp.Character.HumanoidRootPart.Position).Magnitude <= States.AuraRange then
                         lp.Character.HumanoidRootPart.CFrame = CFrame.lookAt(lp.Character.HumanoidRootPart.Position, p.Character.HumanoidRootPart.Position)
@@ -474,19 +504,7 @@ RunService.RenderStepped:Connect(function()
         end
     end
     
-    if States.Aimbot and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= lp and p.Character and p.Character:FindFirstChild("Head") then
-                if not States.TeamCheck or (lp.Team ~= p.Team) then
-                    if (p.Character.Head.Position - camera.CFrame.Position).Magnitude < 200 then
-                        local targetCFrame = CFrame.new(camera.CFrame.Position, p.Character.Head.Position)
-                        camera.CFrame = camera.CFrame:Lerp(targetCFrame, States.AimSmoothness)
-                    end
-                end
-            end
-        end
-    end
-    
+    -- HITBOX EXPANDER
     if States.HitboxExpander then
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= lp and p.Character then
@@ -500,34 +518,21 @@ RunService.RenderStepped:Connect(function()
             end
         end
     end
-    
-    -- ORBIT LOGIC (Fixed speed and stopping)
-    if States.OrbitTarget and States.OrbitTarget.Character and States.OrbitTarget.Character:FindFirstChild("HumanoidRootPart") and States.OrbitTarget.Character:FindFirstChild("Humanoid") then
-        if States.OrbitTarget.Character.Humanoid.Health > 0 then
-            local pos = States.OrbitTarget.Character.HumanoidRootPart.Position
-            local time = tick() * States.OrbitSpeed -- Use the slower speed here
-            lp.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(math.cos(time) * 6, 3, math.sin(time) * 6), pos)
-            camera.CFrame = CFrame.new(camera.CFrame.Position, pos)
-        else
-            -- Stop orbit if target dies
-            States.OrbitTarget = nil
-            camera.CameraSubject = lp.Character.Humanoid
-        end
-    end
 end)
 
-mouse.Button1Down:Connect(function()
-    if States.Triggerbot and mouse.Target then
-        local model = mouse.Target:FindFirstAncestorOfClass("Model")
-        if model then
-            local player = Players:GetPlayerFromCharacter(model)
-            if player and player ~= lp then
-                if not States.TeamCheck or (lp.Team ~= player.Team) then
-                    local tool = lp.Character:FindFirstChildOfClass("Tool")
-                    if tool then tool:Activate() end
-                end
-            end
+-- NOCLIP & JUMPPOWER (Stepped is more reliable than RenderStepped for collisions)
+RunService.Stepped:Connect(function()
+    if not lp.Character then return end
+    
+    if States.Noclip then
+        for _, v in pairs(lp.Character:GetDescendants()) do
+            if v:IsA("BasePart") then v.CanCollide = false end
         end
+    end
+    
+    local hum = lp.Character:FindFirstChild("Humanoid")
+    if hum and hum.JumpPower ~= States.JumpPower then
+        hum.JumpPower = States.JumpPower
     end
 end)
 
@@ -538,7 +543,7 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 -- ============================================
--- 4. INITIALIZATION & DRAG
+-- 4. INIT & DRAG
 -- ============================================
 if firstPage and firstBtn then
     firstPage.Visible = true
@@ -571,4 +576,4 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
-print("[Ollie Admin v62] Loaded. Orbit & Spectate fixed.")
+print("[Ollie Admin v64] Loaded. Core Fixed.")
