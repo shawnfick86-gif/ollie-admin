@@ -1,5 +1,5 @@
 -- ============================================
--- OLLIE ADMIN v58 • FULLY POPULATED
+-- OLLIE ADMIN v59 • FIXED LAYOUT & TABS
 -- ============================================
 
 local Players = game:GetService("Players")
@@ -23,14 +23,6 @@ local Theme = {
     TextDim = Color3.fromRGB(150, 150, 150),
     Font = Enum.Font.Gotham,
     FontBold = Enum.Font.GothamBold,
-    Icons = {
-        Combat = "rbxassetid://10709793219",
-        Movement = "rbxassetid://10709791618",
-        Visuals = "rbxassetid://10709788421",
-        Players = "rbxassetid://10709787854",
-        Misc = "rbxassetid://10709788811",
-        Settings = "rbxassetid://10709791854"
-    }
 }
 
 local States = {
@@ -46,7 +38,7 @@ local States = {
 -- 1. CORE UI ENGINE
 -- ============================================
 local gui = Instance.new("ScreenGui")
-gui.Name = "OllieAdminV58"
+gui.Name = "OllieAdminV59"
 gui.ResetOnSpawn = false
 gui.Parent = pg
 
@@ -66,30 +58,13 @@ topBar.Parent = main
 
 local logo = Instance.new("TextLabel")
 logo.Size = UDim2.new(0, 40, 1, 0)
-logo.Position = UDim2.new(0, 10, 0, 0)
+logo.Position = UDim2.new(0, 15, 0, 0)
 logo.BackgroundTransparency = 1
 logo.Text = "O"
 logo.TextColor3 = Theme.Accent
 logo.Font = Theme.FontBold
 logo.TextSize = 18
 logo.Parent = topBar
-
-local searchBar = Instance.new("Frame")
-searchBar.Size = UDim2.new(0, 200, 0, 24)
-searchBar.Position = UDim2.new(0.5, -100, 0, 8)
-searchBar.BackgroundColor3 = Theme.Panel
-searchBar.Parent = topBar
-Instance.new("UICorner", searchBar).CornerRadius = UDim.new(0, 4)
-local searchTxt = Instance.new("TextLabel")
-searchTxt.Size = UDim2.new(1, -10, 1, 0)
-searchTxt.Position = UDim2.new(0, 10, 0, 0)
-searchTxt.BackgroundTransparency = 1
-searchTxt.Text = "Search features..."
-searchTxt.TextColor3 = Theme.TextDim
-searchTxt.Font = Theme.Font
-searchTxt.TextSize = 11
-searchTxt.TextXAlignment = Enum.TextXAlignment.Left
-searchTxt.Parent = searchBar
 
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 24, 0, 24)
@@ -102,6 +77,7 @@ closeBtn.TextSize = 14
 closeBtn.Parent = topBar
 closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
+-- Sidebar
 local sidebar = Instance.new("Frame")
 sidebar.Size = UDim2.new(0, 50, 1, -50)
 sidebar.Position = UDim2.new(0, 10, 0, 45)
@@ -110,10 +86,12 @@ sidebar.Parent = main
 local sideLayout = Instance.new("UIListLayout", sidebar)
 sideLayout.Padding = UDim.new(0, 8)
 sideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+sideLayout.VerticalAlignment = Enum.VerticalAlignment.Top
 
+-- Content Area
 local content = Instance.new("Frame")
-content.Size = UDim2.new(1, -70, 1, -50)
-content.Position = UDim2.new(0, 60, 0, 45)
+content.Size = UDim2.new(1, -80, 1, -50)
+content.Position = UDim2.new(0, 70, 0, 45)
 content.BackgroundTransparency = 1
 content.Parent = main
 
@@ -123,27 +101,23 @@ local activeTabBtn = nil
 -- ============================================
 -- 2. UI BUILDERS
 -- ============================================
-local function CreateTab(name, iconId)
+local function CreateTab(name, iconEmoji)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 36, 0, 36)
     btn.BackgroundColor3 = Theme.BG
-    btn.Text = ""
+    btn.Text = iconEmoji
+    btn.TextColor3 = Theme.TextDim
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
     btn.BorderSizePixel = 0
     btn.Parent = sidebar
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    
-    local img = Instance.new("ImageLabel")
-    img.Size = UDim2.new(0, 20, 0, 20)
-    img.Position = UDim2.new(0.5, -10, 0.5, -10)
-    img.BackgroundTransparency = 1
-    img.Image = iconId
-    img.ImageColor3 = Theme.TextDim
-    img.Parent = btn
 
     local page = Instance.new("ScrollingFrame")
     page.Size = UDim2.new(1, 0, 1, 0)
     page.BackgroundTransparency = 1
     page.Visible = false
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
     page.CanvasSize = UDim2.new(0, 0, 0, 0)
     page.ScrollBarThickness = 2
     page.ScrollBarImageColor3 = Theme.Accent
@@ -151,28 +125,24 @@ local function CreateTab(name, iconId)
     pages[name] = page
 
     local leftCol = Instance.new("Frame", page)
-    leftCol.Size = UDim2.new(0.5, -5, 1, 0)
+    leftCol.Size = UDim2.new(0.5, -10, 1, 0)
     leftCol.BackgroundTransparency = 1
-    leftCol.Parent = page
     local lList = Instance.new("UIListLayout", leftCol)
     lList.Padding = UDim.new(0, 8)
 
     local rightCol = Instance.new("Frame", page)
-    rightCol.Size = UDim2.new(0.5, -5, 1, 0)
-    rightCol.Position = UDim2.new(0.5, 5, 0, 0)
+    rightCol.Size = UDim2.new(0.5, -10, 1, 0)
+    rightCol.Position = UDim2.new(0.5, 10, 0, 0)
     rightCol.BackgroundTransparency = 1
-    rightCol.Parent = page
     local rList = Instance.new("UIListLayout", rightCol)
     rList.Padding = UDim.new(0, 8)
 
     btn.MouseButton1Click:Connect(function()
         if activeTabBtn then
-            TweenService:Create(activeTabBtn, TweenInfo.new(0.2), {BackgroundColor3 = Theme.BG}):Play()
-            TweenService:Create(activeTabBtn:FindFirstChild("ImageLabel"), TweenInfo.new(0.2), {ImageColor3 = Theme.TextDim}):Play()
+            TweenService:Create(activeTabBtn, TweenInfo.new(0.2), {BackgroundColor3 = Theme.BG, TextColor3 = Theme.TextDim}):Play()
         end
         activeTabBtn = btn
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Panel}):Play()
-        TweenService:Create(img, TweenInfo.new(0.2), {ImageColor3 = Theme.Accent}):Play()
+        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Panel, TextColor3 = Theme.Accent}):Play()
         for n, p in pairs(pages) do p.Visible = (n == name) end
     end)
 
@@ -319,14 +289,13 @@ end
 -- ============================================
 
 -- COMBAT
-local cLeft, cRight = CreateTab("Combat", Theme.Icons.Combat)
+local cLeft, cRight = CreateTab("Combat", "⚔️")
 AddSection(cLeft, "Combat Features")
 AddToggle(cLeft, "Kill Aura", function(v) States.KillAura = v end)
-AddToggle(cLeft, "Aimbot", function(v) States.Aimbot = v end)
+AddToggle(cLeft, "Aimbot (Hold RMB)", function(v) States.Aimbot = v end)
 AddToggle(cLeft, "Triggerbot", function(v) States.Triggerbot = v end)
 AddToggle(cLeft, "Hitbox Expander", function(v) States.HitboxExpander = v end)
 AddToggle(cLeft, "Team Check", function(v) States.TeamCheck = v end)
-AddToggle(cLeft, "Visible Check", function(v) States.VisibleCheck = v end)
 
 AddSection(cRight, "Settings")
 AddSlider(cRight, "Aura Range", 5, 50, 15, function(v) States.AuraRange = v end)
@@ -335,12 +304,12 @@ AddSlider(cRight, "Hitbox Size", 1, 20, 10, function(v) States.HitboxSize = v en
 AddSlider(cRight, "Aim Smoothness", 0.01, 1, 0.2, function(v) States.AimSmoothness = v end)
 
 -- MOVEMENT
-local mLeft, mRight = CreateTab("Movement", Theme.Icons.Movement)
+local mLeft, mRight = CreateTab("Movement", "🏃")
 AddSection(mLeft, "Movement Mods")
 AddToggle(mLeft, "Fly", function(v) States.Fly = v end)
 AddToggle(mLeft, "Noclip", function(v) States.Noclip = v end)
 AddToggle(mLeft, "Infinite Jump", function(v) States.InfJump = v end)
-AddToggle(mLeft, "Lock Mouse (Aimbot)", function(v) States.LockMouse = v end)
+AddToggle(mLeft, "Lock Mouse", function(v) States.LockMouse = v end)
 
 AddSection(mRight, "Speed Settings")
 AddSlider(mRight, "WalkSpeed", 16, 250, 16, function(v) if lp.Character and lp.Character:FindFirstChild("Humanoid") then lp.Character.Humanoid.WalkSpeed = v end end)
@@ -348,20 +317,15 @@ AddSlider(mRight, "JumpPower", 50, 250, 50, function(v) if lp.Character and lp.C
 AddSlider(mRight, "Fly Speed", 10, 150, 50, function(v) States.FlySpeed = v end)
 
 -- VISUALS
-local vLeft, vRight = CreateTab("Visuals", Theme.Icons.Visuals)
+local vLeft, vRight = CreateTab("Visuals", "👁️")
 AddSection(vLeft, "World")
 AddToggle(vLeft, "Fullbright", function(v)
     if v then Lighting.Ambient = Color3.new(1,1,1); Lighting.OutdoorAmbient = Color3.new(1,1,1)
     else Lighting.Ambient = Color3.fromRGB(70,70,70); Lighting.OutdoorAmbient = Color3.fromRGB(128,128,128) end
 end)
 
-AddSection(vLeft, "ESP")
-AddToggle(vLeft, "Player ESP", function(v) States.PlayerESP = v end)
-AddToggle(vLeft, "Name ESP", function(v) States.NameESP = v end)
-AddToggle(vLeft, "Tracer ESP", function(v) States.TracerESP = v end)
-
 -- MISC / SERVER
-local sLeft, sRight = CreateTab("Misc", Theme.Icons.Misc)
+local sLeft, sRight = CreateTab("Misc", "⚙️")
 AddSection(sLeft, "Server Actions")
 AddButton(sLeft, "Kill All (Client)", function()
     for _, p in ipairs(Players:GetPlayers()) do
@@ -373,43 +337,20 @@ AddButton(sLeft, "Fling All (Client)", function()
         if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then p.Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new(1e5, 1e5, 1e5) end
     end
 end)
-AddButton(sLeft, "TP All To Me", function()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and lp.Character then p.Character.HumanoidRootPart.CFrame = lp.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3) end
-    end
-end)
 
 AddSection(sRight, "Utility")
 AddButton(sRight, "Rejoin Server", function() TeleportService:Teleport(game.PlaceId, lp) end)
-AddButton(sRight, "Server Hop", function() 
-    -- Basic server hop logic
-    local http = game:GetService("HttpService")
-    local url = "https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
-    local res = http:JSONDecode(game:HttpGet(url))
-    for _, srv in ipairs(res.data) do
-        if srv.playing < srv.maxPlayers then TeleportService:TeleportToPlaceInstance(game.PlaceId, srv.id, lp) break end
-    end
-end)
-AddButton(sRight, "Copy Job ID", function() setclipboard(tostring(game.JobId)) end)
+AddButton(sRight, "Unload UI", function() gui:Destroy() end)
 
--- SETTINGS
-local cfgLeft, cfgRight = CreateTab("Settings", Theme.Icons.Settings)
-AddSection(cfgLeft, "Config")
-AddButton(cfgLeft, "Save Config", function() print("Config saved (placeholder)") end)
-AddButton(cfgLeft, "Load Config", function() print("Config loaded (placeholder)") end)
-AddButton(cfgLeft, "Reset Defaults", function() print("Defaults reset (placeholder)") end)
-
-AddSection(cfgRight, "Danger")
-AddButton(cfgRight, "Unload UI", function() gui:Destroy() end)
-
--- PLAYERS TAB (Overrides standard column layout for full width)
-local pLeft, pRight = CreateTab("Players", Theme.Icons.Players)
+-- PLAYERS TAB
+local pLeft, pRight = CreateTab("Players", "👥")
 pLeft.Size = UDim2.new(1, 0, 1, 0) -- Make left column full width
 pRight.Visible = false
 
 local playerScroll = Instance.new("ScrollingFrame")
 playerScroll.Size = UDim2.new(1, 0, 1, 0)
 playerScroll.BackgroundTransparency = 1
+playerScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 playerScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 playerScroll.ScrollBarThickness = 2
 playerScroll.Parent = pLeft
@@ -583,4 +524,4 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
 
-print("[Ollie Admin v58] Loaded. Fully Populated.")
+print("[Ollie Admin v59] Loaded. Layout Fixed.")
