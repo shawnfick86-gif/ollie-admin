@@ -1,5 +1,5 @@
 -- ============================================
--- OLLIE ADMIN v60 • DRAG & SHIFT LOCK FIX
+-- OLLIE ADMIN v61 • FINAL WORKING BUILD
 -- ============================================
 
 local Players = game:GetService("Players")
@@ -37,7 +37,7 @@ local States = {
 -- 1. CORE UI ENGINE
 -- ============================================
 local gui = Instance.new("ScreenGui")
-gui.Name = "OllieAdminV60"
+gui.Name = "OllieAdminV61"
 gui.ResetOnSpawn = false
 gui.Parent = pg
 
@@ -52,6 +52,7 @@ Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
 local topBar = Instance.new("Frame")
 topBar.Size = UDim2.new(1, 0, 0, 40)
 topBar.BackgroundTransparency = 1
+topBar.Active = true
 topBar.Parent = main
 
 local logo = Instance.new("TextLabel")
@@ -62,15 +63,8 @@ logo.Text = "O"
 logo.TextColor3 = Theme.Accent
 logo.Font = Theme.FontBold
 logo.TextSize = 18
+logo.Active = false
 logo.Parent = topBar
-
--- Invisible Drag Button (Fixes the drag issue)
-local dragBtn = Instance.new("TextButton")
-dragBtn.Size = UDim2.new(1, -60, 1, 0)
-dragBtn.Position = UDim2.new(0, 50, 0, 0)
-dragBtn.BackgroundTransparency = 1
-dragBtn.Text = ""
-dragBtn.Parent = topBar
 
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 24, 0, 24)
@@ -100,6 +94,8 @@ content.Parent = main
 
 local pages = {}
 local activeTabBtn = nil
+local firstPage = nil
+local firstBtn = nil
 
 local function CreateTab(name, iconEmoji)
     local btn = Instance.new("TextButton")
@@ -123,6 +119,11 @@ local function CreateTab(name, iconEmoji)
     page.ScrollBarImageColor3 = Theme.Accent
     page.Parent = content
     pages[name] = page
+
+    if not firstPage then
+        firstPage = page
+        firstBtn = btn
+    end
 
     local leftCol = Instance.new("Frame", page)
     leftCol.Size = UDim2.new(0.5, -10, 1, 0)
@@ -307,15 +308,6 @@ AddSection(mLeft, "Movement Mods")
 AddToggle(mLeft, "Fly", function(v) States.Fly = v end)
 AddToggle(mLeft, "Noclip", function(v) States.Noclip = v end)
 AddToggle(mLeft, "Infinite Jump", function(v) States.InfJump = v end)
-AddToggle(mLeft, "Lock Mouse (Aimbot)", function(v) 
-    States.LockMouse = v 
-    -- ONLY change mouse behavior when toggled
-    if v then
-        UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-    else
-        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-    end
-end)
 
 AddSection(mRight, "Speed Settings")
 AddSlider(mRight, "WalkSpeed", 16, 250, 16, function(v) if lp.Character and lp.Character:FindFirstChild("Humanoid") then lp.Character.Humanoid.WalkSpeed = v end end)
@@ -424,7 +416,7 @@ end
 RefreshPlayerList()
 
 -- ============================================
--- 3. RENDER & DRAG LOGIC
+-- 3. RENDER LOGIC
 -- ============================================
 RunService.RenderStepped:Connect(function()
     if not lp.Character then return end
@@ -508,16 +500,23 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- Select first tab
-for _, child in ipairs(sidebar:GetChildren()) do
-    if child:IsA("TextButton") then child.MouseButton1Click:Fire() break end
+-- ============================================
+-- 4. INITIALIZATION & DRAG
+-- ============================================
+
+-- Set first tab active correctly (without using :Fire())
+if firstPage and firstBtn then
+    firstPage.Visible = true
+    activeTabBtn = firstBtn
+    firstBtn.BackgroundColor3 = Theme.Panel
+    firstBtn.TextColor3 = Theme.Accent
 end
 
--- Drag Logic using the invisible dragBtn
+-- Drag Logic using topBar
 local dragging = false
 local dragStart, startPos
 
-dragBtn.InputBegan:Connect(function(input)
+topBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = true
         dragStart = input.Position
@@ -538,4 +537,4 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
-print("[Ollie Admin v60] Loaded. Drag & Shift Lock fixed.")
+print("[Ollie Admin v61] Loaded. Fully Functional.")
