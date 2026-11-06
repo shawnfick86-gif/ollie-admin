@@ -1,5 +1,5 @@
 -- ============================================
--- OLLIE ADMIN v59 • FIXED LAYOUT & TABS
+-- OLLIE ADMIN v60 • DRAG & SHIFT LOCK FIX
 -- ============================================
 
 local Players = game:GetService("Players")
@@ -30,15 +30,14 @@ local States = {
     AuraRange = 15, FOVSize = 90, HitboxSize = 10, AimSmoothness = 0.2,
     Fly = false, Noclip = false, InfJump = false, LockMouse = false,
     WalkSpeed = 16, JumpPower = 50, FlySpeed = 50,
-    Fullbright = false, PlayerESP = false, NameESP = false, TracerESP = false,
-    SpectateTarget = nil, OrbitTarget = nil
+    Fullbright = false, SpectateTarget = nil, OrbitTarget = nil
 }
 
 -- ============================================
 -- 1. CORE UI ENGINE
 -- ============================================
 local gui = Instance.new("ScreenGui")
-gui.Name = "OllieAdminV59"
+gui.Name = "OllieAdminV60"
 gui.ResetOnSpawn = false
 gui.Parent = pg
 
@@ -53,7 +52,6 @@ Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
 local topBar = Instance.new("Frame")
 topBar.Size = UDim2.new(1, 0, 0, 40)
 topBar.BackgroundTransparency = 1
-topBar.Active = true
 topBar.Parent = main
 
 local logo = Instance.new("TextLabel")
@@ -66,6 +64,14 @@ logo.Font = Theme.FontBold
 logo.TextSize = 18
 logo.Parent = topBar
 
+-- Invisible Drag Button (Fixes the drag issue)
+local dragBtn = Instance.new("TextButton")
+dragBtn.Size = UDim2.new(1, -60, 1, 0)
+dragBtn.Position = UDim2.new(0, 50, 0, 0)
+dragBtn.BackgroundTransparency = 1
+dragBtn.Text = ""
+dragBtn.Parent = topBar
+
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 24, 0, 24)
 closeBtn.Position = UDim2.new(1, -34, 0, 8)
@@ -77,7 +83,6 @@ closeBtn.TextSize = 14
 closeBtn.Parent = topBar
 closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
--- Sidebar
 local sidebar = Instance.new("Frame")
 sidebar.Size = UDim2.new(0, 50, 1, -50)
 sidebar.Position = UDim2.new(0, 10, 0, 45)
@@ -86,9 +91,7 @@ sidebar.Parent = main
 local sideLayout = Instance.new("UIListLayout", sidebar)
 sideLayout.Padding = UDim.new(0, 8)
 sideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-sideLayout.VerticalAlignment = Enum.VerticalAlignment.Top
 
--- Content Area
 local content = Instance.new("Frame")
 content.Size = UDim2.new(1, -80, 1, -50)
 content.Position = UDim2.new(0, 70, 0, 45)
@@ -98,9 +101,6 @@ content.Parent = main
 local pages = {}
 local activeTabBtn = nil
 
--- ============================================
--- 2. UI BUILDERS
--- ============================================
 local function CreateTab(name, iconEmoji)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 36, 0, 36)
@@ -285,10 +285,9 @@ local function AddButton(parent, text, callback)
 end
 
 -- ============================================
--- 3. TAB POPULATION
+-- 2. TABS
 -- ============================================
 
--- COMBAT
 local cLeft, cRight = CreateTab("Combat", "⚔️")
 AddSection(cLeft, "Combat Features")
 AddToggle(cLeft, "Kill Aura", function(v) States.KillAura = v end)
@@ -303,20 +302,26 @@ AddSlider(cRight, "FOV Size", 10, 360, 90, function(v) States.FOVSize = v end)
 AddSlider(cRight, "Hitbox Size", 1, 20, 10, function(v) States.HitboxSize = v end)
 AddSlider(cRight, "Aim Smoothness", 0.01, 1, 0.2, function(v) States.AimSmoothness = v end)
 
--- MOVEMENT
 local mLeft, mRight = CreateTab("Movement", "🏃")
 AddSection(mLeft, "Movement Mods")
 AddToggle(mLeft, "Fly", function(v) States.Fly = v end)
 AddToggle(mLeft, "Noclip", function(v) States.Noclip = v end)
 AddToggle(mLeft, "Infinite Jump", function(v) States.InfJump = v end)
-AddToggle(mLeft, "Lock Mouse", function(v) States.LockMouse = v end)
+AddToggle(mLeft, "Lock Mouse (Aimbot)", function(v) 
+    States.LockMouse = v 
+    -- ONLY change mouse behavior when toggled
+    if v then
+        UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+    else
+        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+    end
+end)
 
 AddSection(mRight, "Speed Settings")
 AddSlider(mRight, "WalkSpeed", 16, 250, 16, function(v) if lp.Character and lp.Character:FindFirstChild("Humanoid") then lp.Character.Humanoid.WalkSpeed = v end end)
 AddSlider(mRight, "JumpPower", 50, 250, 50, function(v) if lp.Character and lp.Character:FindFirstChild("Humanoid") then lp.Character.Humanoid.JumpPower = v end end)
 AddSlider(mRight, "Fly Speed", 10, 150, 50, function(v) States.FlySpeed = v end)
 
--- VISUALS
 local vLeft, vRight = CreateTab("Visuals", "👁️")
 AddSection(vLeft, "World")
 AddToggle(vLeft, "Fullbright", function(v)
@@ -324,7 +329,6 @@ AddToggle(vLeft, "Fullbright", function(v)
     else Lighting.Ambient = Color3.fromRGB(70,70,70); Lighting.OutdoorAmbient = Color3.fromRGB(128,128,128) end
 end)
 
--- MISC / SERVER
 local sLeft, sRight = CreateTab("Misc", "⚙️")
 AddSection(sLeft, "Server Actions")
 AddButton(sLeft, "Kill All (Client)", function()
@@ -342,9 +346,8 @@ AddSection(sRight, "Utility")
 AddButton(sRight, "Rejoin Server", function() TeleportService:Teleport(game.PlaceId, lp) end)
 AddButton(sRight, "Unload UI", function() gui:Destroy() end)
 
--- PLAYERS TAB
 local pLeft, pRight = CreateTab("Players", "👥")
-pLeft.Size = UDim2.new(1, 0, 1, 0) -- Make left column full width
+pLeft.Size = UDim2.new(1, 0, 1, 0)
 pRight.Visible = false
 
 local playerScroll = Instance.new("ScrollingFrame")
@@ -421,11 +424,10 @@ end
 RefreshPlayerList()
 
 -- ============================================
--- 4. LOGIC
+-- 3. RENDER & DRAG LOGIC
 -- ============================================
 RunService.RenderStepped:Connect(function()
     if not lp.Character then return end
-    if States.LockMouse then UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter else UserInputService.MouseBehavior = Enum.MouseBehavior.Default end
     
     if States.Fly then
         local move = lp.Character.Humanoid.MoveDirection
@@ -511,17 +513,29 @@ for _, child in ipairs(sidebar:GetChildren()) do
     if child:IsA("TextButton") then child.MouseButton1Click:Fire() break end
 end
 
--- Dragging
-local dragging, dragStart, startPos
-topBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; dragStart = input.Position; startPos = main.Position end
+-- Drag Logic using the invisible dragBtn
+local dragging = false
+local dragStart, startPos
+
+dragBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = main.Position
+    end
 end)
+
 UserInputService.InputChanged:Connect(function(input)
     if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
         local delta = input.Position - dragStart
         main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
-UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
 
-print("[Ollie Admin v59] Loaded. Layout Fixed.")
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+print("[Ollie Admin v60] Loaded. Drag & Shift Lock fixed.")
