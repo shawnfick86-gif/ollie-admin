@@ -1,5 +1,5 @@
 -- ============================================
--- OLLIE ADMIN v61 • FINAL WORKING BUILD
+-- OLLIE ADMIN v62 • ORBIT & SPECTATE FIX
 -- ============================================
 
 local Players = game:GetService("Players")
@@ -30,14 +30,17 @@ local States = {
     AuraRange = 15, FOVSize = 90, HitboxSize = 10, AimSmoothness = 0.2,
     Fly = false, Noclip = false, InfJump = false, LockMouse = false,
     WalkSpeed = 16, JumpPower = 50, FlySpeed = 50,
-    Fullbright = false, SpectateTarget = nil, OrbitTarget = nil
+    Fullbright = false, 
+    SpectateTarget = nil, 
+    OrbitTarget = nil,
+    OrbitSpeed = 1.5 -- SLOWER ORBIT SPEED
 }
 
 -- ============================================
 -- 1. CORE UI ENGINE
 -- ============================================
 local gui = Instance.new("ScreenGui")
-gui.Name = "OllieAdminV61"
+gui.Name = "OllieAdminV62"
 gui.ResetOnSpawn = false
 gui.Parent = pg
 
@@ -266,10 +269,10 @@ local function AddSlider(parent, text, min, max, default, callback)
     end)
 end
 
-local function AddButton(parent, text, callback)
+local function AddButton(parent, text, callback, color)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(1, 0, 0, 26)
-    b.BackgroundColor3 = Theme.Panel
+    b.BackgroundColor3 = color or Theme.Panel
     b.Text = text
     b.TextColor3 = Theme.Text
     b.Font = Theme.FontBold
@@ -343,7 +346,7 @@ pLeft.Size = UDim2.new(1, 0, 1, 0)
 pRight.Visible = false
 
 local playerScroll = Instance.new("ScrollingFrame")
-playerScroll.Size = UDim2.new(1, 0, 1, 0)
+playerScroll.Size = UDim2.new(1, 0, 0.85, 0)
 playerScroll.BackgroundTransparency = 1
 playerScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 playerScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -395,31 +398,57 @@ local function RefreshPlayerList()
         end
         
         makeIconBtn("👁️", function()
-            if States.SpectateTarget == p then
-                States.SpectateTarget = nil
-                if lp.Character then camera.CameraSubject = lp.Character.Humanoid end
-            else
-                States.SpectateTarget = p
-                if p.Character then camera.CameraSubject = p.Character.Humanoid end
+            if p.Character and p.Character:FindFirstChild("Humanoid") then
+                if States.SpectateTarget == p then
+                    States.SpectateTarget = nil
+                    camera.CameraSubject = lp.Character.Humanoid
+                else
+                    States.SpectateTarget = p
+                    camera.CameraSubject = p.Character.Humanoid
+                end
             end
         end)
+        
         makeIconBtn("✨", function()
-            if p.Character and lp.Character then lp.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3) end
+            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then 
+                lp.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3) 
+            end
         end)
+        
         makeIconBtn("🌀", function()
-            States.OrbitTarget = (States.OrbitTarget == p) and nil or p
-            if not States.OrbitTarget then camera.CameraSubject = lp.Character.Humanoid end
+            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                if States.OrbitTarget == p then
+                    States.OrbitTarget = nil
+                    camera.CameraSubject = lp.Character.Humanoid
+                else
+                    States.OrbitTarget = p
+                end
+            end
         end)
     end
     playerScroll.CanvasSize = UDim2.new(0, 0, 0, pLayout.AbsoluteContentSize.Y)
 end
 RefreshPlayerList()
 
+-- Reset Camera Button
+AddButton(pLeft, "RESET CAMERA & STOP ORBIT", function()
+    States.OrbitTarget = nil
+    States.SpectateTarget = nil
+    if lp.Character and lp.Character:FindFirstChild("Humanoid") then
+        camera.CameraSubject = lp.Character.Humanoid
+    end
+end, Color3.fromRGB(180, 50, 50))
+
 -- ============================================
 -- 3. RENDER LOGIC
 -- ============================================
 RunService.RenderStepped:Connect(function()
     if not lp.Character then return end
+    
+    -- Spectate Logic (Keep camera locked)
+    if States.SpectateTarget and States.SpectateTarget.Character and States.SpectateTarget.Character:FindFirstChild("Humanoid") then
+        camera.CameraSubject = States.SpectateTarget.Character.Humanoid
+    end
     
     if States.Fly then
         local move = lp.Character.Humanoid.MoveDirection
@@ -472,10 +501,18 @@ RunService.RenderStepped:Connect(function()
         end
     end
     
-    if States.OrbitTarget and States.OrbitTarget.Character then
-        local pos = States.OrbitTarget.Character.HumanoidRootPart.Position
-        lp.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(math.cos(tick()*3)*6, 3, math.sin(tick()*3)*6), pos)
-        camera.CFrame = CFrame.new(camera.CFrame.Position, pos)
+    -- ORBIT LOGIC (Fixed speed and stopping)
+    if States.OrbitTarget and States.OrbitTarget.Character and States.OrbitTarget.Character:FindFirstChild("HumanoidRootPart") and States.OrbitTarget.Character:FindFirstChild("Humanoid") then
+        if States.OrbitTarget.Character.Humanoid.Health > 0 then
+            local pos = States.OrbitTarget.Character.HumanoidRootPart.Position
+            local time = tick() * States.OrbitSpeed -- Use the slower speed here
+            lp.Character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(math.cos(time) * 6, 3, math.sin(time) * 6), pos)
+            camera.CFrame = CFrame.new(camera.CFrame.Position, pos)
+        else
+            -- Stop orbit if target dies
+            States.OrbitTarget = nil
+            camera.CameraSubject = lp.Character.Humanoid
+        end
     end
 end)
 
@@ -503,8 +540,6 @@ end)
 -- ============================================
 -- 4. INITIALIZATION & DRAG
 -- ============================================
-
--- Set first tab active correctly (without using :Fire())
 if firstPage and firstBtn then
     firstPage.Visible = true
     activeTabBtn = firstBtn
@@ -512,7 +547,6 @@ if firstPage and firstBtn then
     firstBtn.TextColor3 = Theme.Accent
 end
 
--- Drag Logic using topBar
 local dragging = false
 local dragStart, startPos
 
@@ -537,4 +571,4 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
-print("[Ollie Admin v61] Loaded. Fully Functional.")
+print("[Ollie Admin v62] Loaded. Orbit & Spectate fixed.")
